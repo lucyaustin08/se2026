@@ -143,3 +143,39 @@ There is one manager per band.
 **Alternatives considered:**
 - A single contact per gig. Rejected: the product owner said the person booking the band is sometimes separate from the venue.
 - A separate `Venue` table shared across gigs. Deferred: the Booking feature (tracking venues from first contact) is a later sprint, and it is the natural place to introduce one.
+
+---
+
+## 2026-10-12 — Settings read with the standard library
+
+**Decision:** `app/core/config.py` reads environment variables with `os.environ` into a frozen dataclass.
+
+**Alternatives considered:**
+- `pydantic-settings`. Not taken: it is a separate package outside the stack contract, and we only have one setting so far. Revisit (and ask the instructor) if settings grow.
+
+---
+
+## 2026-10-12 — Async API tests use the anyio pytest plugin
+
+**Decision:** Async tests are marked with `pytest.mark.anyio`. The plugin ships with anyio, which httpx and Starlette already depend on.
+
+**Alternatives considered:**
+- `pytest-asyncio`. Not taken: it would add a dependency outside the stack contract for no gain.
+
+---
+
+## 2026-10-12 — Validation errors keep the two-field envelope
+
+**Decision:** A `422` returns `{"code": "validation_error", "detail": ...}`, with every failing field and its message folded into the `detail` sentence.
+
+**Alternatives considered:**
+- Adding a third field with a structured list of field errors. Not taken: it would break the course-wide envelope. Forms validate on the client first, so the server's `422` is a backstop. Revisit with the instructor if the frontend needs per-field server errors.
+
+---
+
+## 2026-10-12 — Health check touches the database
+
+**Decision:** `GET /api/v1/health` runs `SELECT 1` and reports `ok` only if the database answers.
+
+**Alternatives considered:**
+- A health check that always returns `ok`. Not taken: Docker Compose healthchecks should fail when the app can't reach its database.
