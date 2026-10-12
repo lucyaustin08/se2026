@@ -1,0 +1,10 @@
+@import "tailwindcss";
+
+/* Design tokens. Tailwind v4 turns these into utilities such as bg-brand-600. */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --color-brand-50: oklch(0.97 0.02 60);
+  --color-brand-600: oklch(0.56 0.16 45);
+  --color-brand-700: oklch(0.48 0.15 45);
+  --color-ink-900: oklch(0.21 0.02 260);
+}
