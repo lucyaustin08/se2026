@@ -49,6 +49,7 @@ plugins = ["pydantic.mypy"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 addopts = "-ra --import-mode=importlib"
 
 [tool.coverage.run]
