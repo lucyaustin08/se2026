@@ -1,5 +1,6 @@
 """Turn every error into the standard envelope: {"code": ..., "detail": ...}."""
 
+from collections.abc import Mapping
 from http import HTTPStatus
 
 from fastapi import FastAPI, Request
@@ -23,7 +24,7 @@ _HTTP_ERRORS: dict[int, tuple[str, str]] = {
 
 
 def _envelope(
-    status_code: int, code: str, detail: str, headers: dict[str, str] | None = None
+    status_code: int, code: str, detail: str, headers: Mapping[str, str] | None = None
 ) -> JSONResponse:
     body = ErrorResponse(code=code, detail=detail).model_dump()
     return JSONResponse(status_code=status_code, content=body, headers=headers)
