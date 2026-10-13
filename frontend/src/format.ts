@@ -37,7 +37,7 @@ export function formatDate(iso: string): string {
 /** "8:00 PM", in the browser's time zone. */
 export function formatTime(iso: string): string {
   // Newer ICU puts a narrow no-break space before AM/PM. Use a plain space everywhere.
-  return timeFormat.format(new Date(iso)).replace(/ /g, " ");
+  return timeFormat.format(new Date(iso)).replace(/\u202f/g, " ");
 }
 
 /** "$400.00" */
