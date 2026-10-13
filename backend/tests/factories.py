@@ -6,8 +6,8 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.models.enums import GigStatus, GigType, Role
-from app.models.gig import Gig, GigAssignment
+from app.models.enums import ContactLabel, GigStatus, Role, SlotStatus
+from app.models.gig import Gig, GigContact, GigSlot
 from app.models.member import Member
 
 BLUE_DOOR_FIRST_SET = datetime(2026, 10, 19, 0, 0, tzinfo=UTC)
@@ -16,15 +16,12 @@ _ids = count(1)
 
 
 def complete_gig_fields() -> dict[str, Any]:
-    """Every field a gig needs before it can be booked."""
+    """Every gig field booking needs (contacts and lineup are added separately)."""
     return {
         "first_set_at": BLUE_DOOR_FIRST_SET,
         "venue_name": "The Blue Door",
         "venue_address": "123 Main St",
-        "gig_type": GigType.DUO,
         "pay_cents": 40_000,
-        "venue_contact_name": "Pat Lee",
-        "venue_contact_phone": "555-0142",
     }
 
 
@@ -36,17 +33,23 @@ class Factory:
     def __init__(self, session: Session) -> None:
         self.session = session
 
-    def member(self, *, name: str | None = None, role: Role | None = Role.BASS) -> Member:
+    def member(
+        self, *, name: str | None = None, role: Role | None = Role.BASS, leader: bool = False
+    ) -> Member:
         n = next(_ids)
         member = Member(
             name=name or f"Member {n}",
             email=f"member{n}@example.com",
             primary_role=role,
             is_manager=False,
+            is_band_leader=leader,
         )
         self.session.add(member)
         self.session.commit()
         return member
+
+    def leader(self, *, name: str = "Sam Rivera") -> Member:
+        return self.member(name=name, role=Role.RHYTHM_GUITAR_VOCALS, leader=True)
 
     def manager(self, *, name: str = "Jordan Avery") -> Member:
         n = next(_ids)
@@ -56,19 +59,49 @@ class Factory:
         return manager
 
     def gig(self, *, status: GigStatus = GigStatus.POTENTIAL, **fields: Any) -> Gig:
-        fields.setdefault("load_in_offset_minutes", 120)
-        fields.setdefault("soundcheck_offset_minutes", 60)
         gig = Gig(status=status, **fields)
         self.session.add(gig)
         self.session.commit()
         return gig
 
-    def complete_gig(self, *, status: GigStatus = GigStatus.POTENTIAL, **fields: Any) -> Gig:
-        return self.gig(status=status, **{**complete_gig_fields(), **fields})
-
-    def assign(self, gig: Gig, member: Member, slot: Role) -> GigAssignment:
-        assignment = GigAssignment(gig_id=gig.id, member_id=member.id, slot=slot)
-        self.session.add(assignment)
+    def slot(
+        self,
+        gig: Gig,
+        role: Role,
+        member: Member | None = None,
+        status: SlotStatus | None = None,
+        pay_cents: int | None = None,
+    ) -> GigSlot:
+        if status is None:
+            status = SlotStatus.OPEN if member is None else SlotStatus.INVITED
+        slot = GigSlot(gig=gig, role=role, member=member, status=status, pay_cents=pay_cents)
+        self.session.add(slot)
         self.session.commit()
+        return slot
+
+    def contact(self, gig: Gig, **fields: Any) -> GigContact:
+        fields.setdefault("label", ContactLabel.VENUE)
+        contact = GigContact(gig=gig, **fields)
+        self.session.add(contact)
+        self.session.commit()
+        return contact
+
+    def bookable_gig(
+        self,
+        *,
+        status: GigStatus = GigStatus.POTENTIAL,
+        leader: Member | None = None,
+        **fields: Any,
+    ) -> Gig:
+        """A gig with everything booking needs: details, a contact, and the leader accepted."""
+        gig = self.gig(status=status, **{**complete_gig_fields(), **fields})
+        self.contact(gig, name="Pat Lee", phone="555-0142")
+        self.slot(
+            gig,
+            Role.RHYTHM_GUITAR_VOCALS,
+            leader or self.leader(),
+            SlotStatus.ACCEPTED,
+            pay_cents=20_000,
+        )
         self.session.refresh(gig)
-        return assignment
+        return gig

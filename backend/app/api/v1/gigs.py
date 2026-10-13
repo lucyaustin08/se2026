@@ -5,7 +5,15 @@ from fastapi import APIRouter, Query, Request, Response
 from app.api.v1.dependencies import ActingMember, GigServiceDep
 from app.api.v1.responses import error_responses
 from app.models.enums import GigStatus
-from app.schemas.gigs import GigCreate, GigDetail, GigPage, GigSort, GigUpdate
+from app.schemas.gigs import (
+    GigCreate,
+    GigDetail,
+    GigPage,
+    GigSort,
+    GigUpdate,
+    InvitationIn,
+    SlotPayIn,
+)
 from app.schemas.pagination import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
 
 router = APIRouter(prefix="/gigs", tags=["gigs"])
@@ -72,3 +80,54 @@ def update_gig(
 )
 def book_gig(gig_id: int, actor: ActingMember, service: GigServiceDep) -> GigDetail:
     return service.book_gig(actor, gig_id)
+
+
+# ---- Lineup slots ------------------------------------------------------------------------
+
+
+@router.post(
+    "/{gig_id}/slots/{slot_id}/invite",
+    response_model=GigDetail,
+    responses=error_responses(403, 404, 409, 422),
+)
+def invite_to_slot(
+    gig_id: int, slot_id: int, body: InvitationIn, actor: ActingMember, service: GigServiceDep
+) -> GigDetail:
+    """Invite a member to fill a slot (manager only). Replaces a pending or declined invite."""
+    return service.invite(actor, gig_id, slot_id, body)
+
+
+@router.patch(
+    "/{gig_id}/slots/{slot_id}",
+    response_model=GigDetail,
+    responses=error_responses(403, 404, 422),
+)
+def set_slot_pay(
+    gig_id: int, slot_id: int, body: SlotPayIn, actor: ActingMember, service: GigServiceDep
+) -> GigDetail:
+    """Change what the member in this slot is paid (manager only)."""
+    return service.set_slot_pay(actor, gig_id, slot_id, body.pay_cents)
+
+
+@router.post(
+    "/{gig_id}/slots/{slot_id}/accept",
+    response_model=GigDetail,
+    responses=error_responses(403, 404, 409, 422),
+)
+def accept_invitation(
+    gig_id: int, slot_id: int, actor: ActingMember, service: GigServiceDep
+) -> GigDetail:
+    """Accept your own invitation. Refused if it overlaps another gig you accepted."""
+    return service.accept(actor, gig_id, slot_id)
+
+
+@router.post(
+    "/{gig_id}/slots/{slot_id}/decline",
+    response_model=GigDetail,
+    responses=error_responses(403, 404, 409, 422),
+)
+def decline_invitation(
+    gig_id: int, slot_id: int, actor: ActingMember, service: GigServiceDep
+) -> GigDetail:
+    """Decline your own invitation."""
+    return service.decline(actor, gig_id, slot_id)

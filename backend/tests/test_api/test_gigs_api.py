@@ -1,10 +1,12 @@
 """Each gig endpoint: the success case (status and shape) plus every error status it returns."""
 
+from datetime import timedelta
+
 import pytest
 from httpx import AsyncClient
 
-from app.models.enums import GigStatus, GigType, Role
-from tests.factories import Factory, headers_for
+from app.models.enums import GigStatus, Role, SlotStatus
+from tests.factories import BLUE_DOOR_FIRST_SET, Factory, headers_for
 
 pytestmark = pytest.mark.anyio
 
@@ -14,15 +16,17 @@ GIG_DETAIL_KEYS = {
     "first_set_at",
     "load_in_at",
     "soundcheck_at",
+    "end_at",
     "load_in_offset_minutes",
     "soundcheck_offset_minutes",
+    "performance_minutes",
     "venue_name",
     "venue_address",
-    "gig_type",
+    "lineup_size",
     "pay_cents",
-    "venue_contact",
-    "booking_contact",
-    "lineup",
+    "slots",
+    "contacts",
+    "my_slot_id",
     "missing_for_booking",
     "created_at",
 }
@@ -62,7 +66,7 @@ async def test_a_non_numeric_acting_member_fails_validation(client: AsyncClient)
 
 
 async def test_list_returns_the_page_envelope(client: AsyncClient, make: Factory) -> None:
-    gig = make.complete_gig()
+    gig = make.bookable_gig()
 
     response = await client.get("/api/v1/gigs", headers=headers_for(make.manager()))
 
@@ -74,8 +78,9 @@ async def test_list_returns_the_page_envelope(client: AsyncClient, make: Factory
                 "status": "potential",
                 "first_set_at": "2026-10-19T00:00:00Z",
                 "venue_name": "The Blue Door",
-                "gig_type": "duo",
+                "lineup_size": "solo",
                 "restricted": False,
+                "my_slot_status": None,
             }
         ],
         "total": 1,
@@ -85,7 +90,7 @@ async def test_list_returns_the_page_envelope(client: AsyncClient, make: Factory
 
 
 async def test_list_passes_filters_and_paging_through(client: AsyncClient, make: Factory) -> None:
-    make.complete_gig()
+    make.bookable_gig()
     undated = make.gig(venue_name="Wedding inquiry")
 
     response = await client.get(
@@ -123,10 +128,14 @@ async def test_create_returns_201_with_location_and_the_new_gig(
         "/api/v1/gigs",
         json={
             "first_set_at": "2026-10-18T20:00:00-04:00",
+            "performance_minutes": 150,
             "venue_name": "The Blue Door",
-            "gig_type": "duo",
             "pay_cents": 40000,
-            "venue_contact": {"name": "Pat Lee", "phone": "555-0142"},
+            "roles": ["rhythm_guitar_vocals", "lead_guitar"],
+            "contacts": [
+                {"label": "venue", "name": "Pat Lee", "phone": "555-0142"},
+                {"label": "other", "notes": "Parking behind the building"},
+            ],
         },
         headers=headers_for(make.manager()),
     )
@@ -139,13 +148,17 @@ async def test_create_returns_201_with_location_and_the_new_gig(
     assert body["first_set_at"] == "2026-10-19T00:00:00Z"
     assert body["load_in_at"] == "2026-10-18T22:00:00Z"
     assert body["soundcheck_at"] == "2026-10-18T23:00:00Z"
-    assert body["venue_contact"] == {"name": "Pat Lee", "phone": "555-0142", "email": None}
-    assert body["booking_contact"] is None
-    assert body["missing_for_booking"] == ["venue address"]
-    assert body["lineup"] == [
-        {"slot": "rhythm_guitar_vocals", "member": None},
-        {"slot": "lead_guitar", "member": None},
+    assert body["end_at"] == "2026-10-19T02:30:00Z"
+    assert body["lineup_size"] == "duo"
+    assert [(s["role"], s["status"], s["member"]) for s in body["slots"]] == [
+        ("rhythm_guitar_vocals", "open", None),
+        ("lead_guitar", "open", None),
     ]
+    assert [{k: c[k] for k in ("label", "name", "phone", "notes")} for c in body["contacts"]] == [
+        {"label": "venue", "name": "Pat Lee", "phone": "555-0142", "notes": None},
+        {"label": "other", "name": None, "phone": None, "notes": "Parking behind the building"},
+    ]
+    assert "venue address" in body["missing_for_booking"]
 
 
 async def test_create_by_a_member_is_refused(client: AsyncClient, make: Factory) -> None:
@@ -163,9 +176,12 @@ async def test_create_by_a_member_is_refused(client: AsyncClient, make: Factory)
         {"first_set_at": "2026-10-18T20:00:00"},  # no time zone
         {"pay_cents": -1},
         {"load_in_offset_minutes": 721},
+        {"performance_minutes": 10},
         {"venue_name": "   "},
-        {"venue_contact": {"email": "not-an-email"}},
-        {"gig_type": "quartet"},
+        {"roles": ["bass", "bass"]},
+        {"roles": ["keytar"]},
+        {"contacts": [{"label": "venue"}]},  # a contact with nothing in it
+        {"contacts": [{"email": "not-an-email"}]},
         {"status": "booked"},  # status only changes through /book
     ],
 )
@@ -182,7 +198,7 @@ async def test_create_rejects_invalid_bodies(
 
 
 async def test_get_returns_the_gig_detail(client: AsyncClient, make: Factory) -> None:
-    gig = make.complete_gig()
+    gig = make.bookable_gig()
 
     response = await client.get(f"/api/v1/gigs/{gig.id}", headers=headers_for(make.manager()))
 
@@ -190,6 +206,7 @@ async def test_get_returns_the_gig_detail(client: AsyncClient, make: Factory) ->
     body = response.json()
     assert set(body) == GIG_DETAIL_KEYS
     assert (body["id"], body["pay_cents"], body["missing_for_booking"]) == (gig.id, 40000, [])
+    assert body["slots"][0]["member"]["name"] == "Sam Rivera"
 
 
 async def test_get_a_missing_gig_is_404(client: AsyncClient, make: Factory) -> None:
@@ -200,7 +217,7 @@ async def test_get_a_missing_gig_is_404(client: AsyncClient, make: Factory) -> N
 
 
 async def test_get_a_gig_the_member_is_not_on_is_403(client: AsyncClient, make: Factory) -> None:
-    gig = make.complete_gig(status=GigStatus.BOOKED)
+    gig = make.bookable_gig(status=GigStatus.BOOKED)
 
     response = await client.get(f"/api/v1/gigs/{gig.id}", headers=headers_for(make.member()))
 
@@ -211,23 +228,27 @@ async def test_get_a_gig_the_member_is_not_on_is_403(client: AsyncClient, make: 
 # ---- PATCH /gigs/{id} ---------------------------------------------------------------------
 
 
-async def test_patch_updates_and_assigns_the_lineup(client: AsyncClient, make: Factory) -> None:
-    gig = make.complete_gig(gig_type=GigType.DUO)
-    casey = make.member(name="Casey Morgan", role=Role.LEAD_GUITAR)
+async def test_patch_updates_fields_roles_and_contacts(client: AsyncClient, make: Factory) -> None:
+    gig = make.bookable_gig()
 
     response = await client.patch(
         f"/api/v1/gigs/{gig.id}",
-        json={"pay_cents": 50000, "lineup": [{"slot": "lead_guitar", "member_id": casey.id}]},
+        json={
+            "pay_cents": 50000,
+            "roles": ["rhythm_guitar_vocals", "drums"],
+            "contacts": [{"label": "booking", "name": "Morgan Hale", "email": "m@example.com"}],
+        },
         headers=headers_for(make.manager()),
     )
 
     assert response.status_code == 200
     body = response.json()
     assert body["pay_cents"] == 50000
-    assert body["lineup"] == [
-        {"slot": "rhythm_guitar_vocals", "member": None},
-        {"slot": "lead_guitar", "member": {"id": casey.id, "name": "Casey Morgan"}},
+    assert [(s["role"], s["status"]) for s in body["slots"]] == [
+        ("rhythm_guitar_vocals", "accepted"),
+        ("drums", "open"),
     ]
+    assert [c["name"] for c in body["contacts"]] == ["Morgan Hale"]
 
 
 async def test_patch_a_missing_gig_is_404(client: AsyncClient, make: Factory) -> None:
@@ -250,18 +271,17 @@ async def test_patch_by_a_member_is_403(client: AsyncClient, make: Factory) -> N
     assert_error(response.json(), "manager_only")
 
 
-async def test_patch_breaking_a_lineup_rule_is_409(client: AsyncClient, make: Factory) -> None:
-    gig = make.complete_gig(gig_type=GigType.DUO)
-    bassist = make.member(role=Role.BASS)
+async def test_patch_that_leaves_a_booked_gig_incomplete_is_409(
+    client: AsyncClient, make: Factory
+) -> None:
+    gig = make.bookable_gig(status=GigStatus.BOOKED)
 
     response = await client.patch(
-        f"/api/v1/gigs/{gig.id}",
-        json={"lineup": [{"slot": "lead_guitar", "member_id": bassist.id}]},
-        headers=headers_for(make.manager()),
+        f"/api/v1/gigs/{gig.id}", json={"contacts": []}, headers=headers_for(make.manager())
     )
 
     assert response.status_code == 409
-    assert_error(response.json(), "member_role_mismatch")
+    assert_error(response.json(), "gig_incomplete")
 
 
 async def test_patch_with_an_invalid_body_is_422(client: AsyncClient, make: Factory) -> None:
@@ -279,7 +299,7 @@ async def test_patch_with_an_invalid_body_is_422(client: AsyncClient, make: Fact
 
 
 async def test_book_marks_the_gig_booked(client: AsyncClient, make: Factory) -> None:
-    gig = make.complete_gig()
+    gig = make.bookable_gig()
 
     response = await client.post(f"/api/v1/gigs/{gig.id}/book", headers=headers_for(make.manager()))
 
@@ -299,17 +319,8 @@ async def test_book_an_incomplete_gig_is_409(client: AsyncClient, make: Factory)
     assert "venue address" in response.json()["detail"]
 
 
-async def test_book_twice_is_409(client: AsyncClient, make: Factory) -> None:
-    gig = make.complete_gig(status=GigStatus.BOOKED)
-
-    response = await client.post(f"/api/v1/gigs/{gig.id}/book", headers=headers_for(make.manager()))
-
-    assert response.status_code == 409
-    assert_error(response.json(), "gig_not_potential")
-
-
 async def test_book_by_a_member_is_403(client: AsyncClient, make: Factory) -> None:
-    gig = make.complete_gig()
+    gig = make.bookable_gig()
 
     response = await client.post(f"/api/v1/gigs/{gig.id}/book", headers=headers_for(make.member()))
 
@@ -326,6 +337,249 @@ async def test_book_a_missing_gig_is_404(client: AsyncClient, make: Factory) -> 
 
 async def test_book_with_a_non_numeric_id_is_422(client: AsyncClient, make: Factory) -> None:
     response = await client.post("/api/v1/gigs/abc/book", headers=headers_for(make.manager()))
+
+    assert response.status_code == 422
+    assert_error(response.json(), "validation_error")
+
+
+# ---- POST /gigs/{id}/slots/{slot_id}/invite -----------------------------------------------
+
+
+async def test_invite_sets_the_member_and_their_pay(client: AsyncClient, make: Factory) -> None:
+    gig = make.gig()
+    slot = make.slot(gig, Role.BASS)
+    riley = make.member(name="Riley Chen")
+
+    response = await client.post(
+        f"/api/v1/gigs/{gig.id}/slots/{slot.id}/invite",
+        json={"member_id": riley.id, "pay_cents": 15000},
+        headers=headers_for(make.manager()),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert set(body) == GIG_DETAIL_KEYS
+    assert body["slots"] == [
+        {
+            "id": slot.id,
+            "role": "bass",
+            "status": "invited",
+            "member": {"id": riley.id, "name": "Riley Chen"},
+            "pay_cents": 15000,
+            "responded_at": None,
+        }
+    ]
+
+
+async def test_invite_by_a_member_is_403(client: AsyncClient, make: Factory) -> None:
+    gig = make.gig()
+    slot = make.slot(gig, Role.BASS)
+    member = make.member()
+
+    response = await client.post(
+        f"/api/v1/gigs/{gig.id}/slots/{slot.id}/invite",
+        json={"member_id": member.id},
+        headers=headers_for(member),
+    )
+
+    assert response.status_code == 403
+    assert_error(response.json(), "manager_only")
+
+
+async def test_invite_to_a_missing_slot_is_404(client: AsyncClient, make: Factory) -> None:
+    gig = make.gig()
+
+    response = await client.post(
+        f"/api/v1/gigs/{gig.id}/slots/9999/invite",
+        json={"member_id": 1},
+        headers=headers_for(make.manager()),
+    )
+
+    assert response.status_code == 404
+    assert_error(response.json(), "slot_not_found")
+
+
+async def test_invite_the_manager_is_409(client: AsyncClient, make: Factory) -> None:
+    gig = make.gig()
+    slot = make.slot(gig, Role.BASS)
+    manager = make.manager()
+
+    response = await client.post(
+        f"/api/v1/gigs/{gig.id}/slots/{slot.id}/invite",
+        json={"member_id": manager.id},
+        headers=headers_for(manager),
+    )
+
+    assert response.status_code == 409
+    assert_error(response.json(), "manager_cannot_play")
+
+
+async def test_invite_without_a_member_is_422(client: AsyncClient, make: Factory) -> None:
+    gig = make.gig()
+    slot = make.slot(gig, Role.BASS)
+
+    response = await client.post(
+        f"/api/v1/gigs/{gig.id}/slots/{slot.id}/invite",
+        json={"pay_cents": 100},
+        headers=headers_for(make.manager()),
+    )
+
+    assert response.status_code == 422
+    assert_error(response.json(), "validation_error")
+
+
+# ---- PATCH /gigs/{id}/slots/{slot_id} -----------------------------------------------------
+
+
+async def test_set_slot_pay(client: AsyncClient, make: Factory) -> None:
+    gig = make.gig()
+    slot = make.slot(gig, Role.BASS, make.member(), pay_cents=10000)
+
+    response = await client.patch(
+        f"/api/v1/gigs/{gig.id}/slots/{slot.id}",
+        json={"pay_cents": 12500},
+        headers=headers_for(make.manager()),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["slots"][0]["pay_cents"] == 12500
+
+
+async def test_set_slot_pay_by_a_member_is_403(client: AsyncClient, make: Factory) -> None:
+    member = make.member()
+    gig = make.gig()
+    slot = make.slot(gig, Role.BASS, member)
+
+    response = await client.patch(
+        f"/api/v1/gigs/{gig.id}/slots/{slot.id}",
+        json={"pay_cents": 99999},
+        headers=headers_for(member),
+    )
+
+    assert response.status_code == 403
+    assert_error(response.json(), "manager_only")
+
+
+async def test_set_pay_on_a_missing_gig_is_404(client: AsyncClient, make: Factory) -> None:
+    response = await client.patch(
+        "/api/v1/gigs/9999/slots/1", json={"pay_cents": 1}, headers=headers_for(make.manager())
+    )
+
+    assert response.status_code == 404
+    assert_error(response.json(), "gig_not_found")
+
+
+async def test_set_negative_pay_is_422(client: AsyncClient, make: Factory) -> None:
+    gig = make.gig()
+    slot = make.slot(gig, Role.BASS)
+
+    response = await client.patch(
+        f"/api/v1/gigs/{gig.id}/slots/{slot.id}",
+        json={"pay_cents": -5},
+        headers=headers_for(make.manager()),
+    )
+
+    assert response.status_code == 422
+    assert_error(response.json(), "validation_error")
+
+
+# ---- POST /gigs/{id}/slots/{slot_id}/accept and /decline ------------------------------------
+
+
+async def test_accept_your_invitation(client: AsyncClient, make: Factory) -> None:
+    riley = make.member()
+    gig = make.gig(first_set_at=BLUE_DOOR_FIRST_SET)
+    slot = make.slot(gig, Role.BASS, riley, pay_cents=15000)
+
+    response = await client.post(
+        f"/api/v1/gigs/{gig.id}/slots/{slot.id}/accept", headers=headers_for(riley)
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert set(body) == GIG_DETAIL_KEYS
+    assert body["slots"][0]["status"] == "accepted"
+    assert body["slots"][0]["responded_at"] is not None
+    assert (body["my_slot_id"], body["pay_cents"], body["slots"][0]["pay_cents"]) == (
+        slot.id,
+        None,
+        15000,
+    )
+
+
+async def test_decline_your_invitation(client: AsyncClient, make: Factory) -> None:
+    riley = make.member()
+    gig = make.gig()
+    slot = make.slot(gig, Role.BASS, riley)
+
+    response = await client.post(
+        f"/api/v1/gigs/{gig.id}/slots/{slot.id}/decline", headers=headers_for(riley)
+    )
+
+    assert response.status_code == 200
+    assert response.json()["slots"][0]["status"] == "declined"
+
+
+async def test_accept_someone_elses_invitation_is_403(client: AsyncClient, make: Factory) -> None:
+    riley, taylor = make.member(), make.member(role=Role.DRUMS)
+    gig = make.gig()
+    make.slot(gig, Role.DRUMS, taylor)
+    riley_slot = make.slot(gig, Role.BASS, riley)
+
+    response = await client.post(
+        f"/api/v1/gigs/{gig.id}/slots/{riley_slot.id}/accept", headers=headers_for(taylor)
+    )
+
+    assert response.status_code == 403
+    assert_error(response.json(), "not_your_invitation")
+
+
+async def test_accept_on_a_gig_you_are_not_invited_to_is_404(
+    client: AsyncClient, make: Factory
+) -> None:
+    gig = make.gig()
+    slot = make.slot(gig, Role.BASS, make.member())
+
+    response = await client.post(
+        f"/api/v1/gigs/{gig.id}/slots/{slot.id}/accept", headers=headers_for(make.member())
+    )
+
+    assert response.status_code == 404
+    assert_error(response.json(), "gig_not_found")
+
+
+async def test_accept_an_overlapping_gig_is_409(client: AsyncClient, make: Factory) -> None:
+    riley = make.member()
+    other = make.gig(first_set_at=BLUE_DOOR_FIRST_SET)
+    make.slot(other, Role.BASS, riley, SlotStatus.ACCEPTED)
+    gig = make.gig(first_set_at=BLUE_DOOR_FIRST_SET + timedelta(hours=1))
+    slot = make.slot(gig, Role.BASS, riley)
+
+    response = await client.post(
+        f"/api/v1/gigs/{gig.id}/slots/{slot.id}/accept", headers=headers_for(riley)
+    )
+
+    assert response.status_code == 409
+    assert_error(response.json(), "overlapping_gig")
+
+
+async def test_decline_twice_is_409(client: AsyncClient, make: Factory) -> None:
+    riley = make.member()
+    gig = make.gig()
+    slot = make.slot(gig, Role.BASS, riley, SlotStatus.DECLINED)
+
+    response = await client.post(
+        f"/api/v1/gigs/{gig.id}/slots/{slot.id}/decline", headers=headers_for(riley)
+    )
+
+    assert response.status_code == 409
+    assert_error(response.json(), "invitation_not_pending")
+
+
+async def test_answer_with_a_non_numeric_slot_is_422(client: AsyncClient, make: Factory) -> None:
+    response = await client.post(
+        "/api/v1/gigs/1/slots/abc/accept", headers=headers_for(make.member())
+    )
 
     assert response.status_code == 422
     assert_error(response.json(), "validation_error")

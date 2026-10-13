@@ -1,23 +1,34 @@
-"""Which lineup slots each gig type has."""
+"""Lineup facts derived from a gig's slots."""
 
-from app.models.enums import GigType, Role
+from app.models.enums import LineupSize, Role
 
-LINEUP_SLOTS: dict[GigType, tuple[Role, ...]] = {
-    GigType.DUO: (Role.RHYTHM_GUITAR_VOCALS, Role.LEAD_GUITAR),
-    # The trio's third slot is waiting on the product owner (see DECISIONS.md), so only
-    # its two fixed slots can be filled for now.
-    GigType.TRIO: (Role.RHYTHM_GUITAR_VOCALS, Role.LEAD_GUITAR),
-    GigType.FULL_BAND: (
-        Role.RHYTHM_GUITAR_VOCALS,
-        Role.LEAD_GUITAR,
-        Role.BASS,
-        Role.DRUMS,
-        Role.SPECIALTY,
-    ),
+# The order roles are listed in, wherever a lineup is shown.
+ROLE_ORDER: tuple[Role, ...] = (
+    Role.RHYTHM_GUITAR_VOCALS,
+    Role.LEAD_GUITAR,
+    Role.BASS,
+    Role.DRUMS,
+    Role.SPECIALTY,
+)
+
+ROLE_LABELS: dict[Role, str] = {
+    Role.RHYTHM_GUITAR_VOCALS: "rhythm guitar/vocals",
+    Role.LEAD_GUITAR: "lead guitar",
+    Role.BASS: "bass",
+    Role.DRUMS: "drums",
+    Role.SPECIALTY: "specialty instrument",
+}
+
+_SIZES: dict[int, LineupSize] = {
+    1: LineupSize.SOLO,
+    2: LineupSize.DUO,
+    3: LineupSize.TRIO,
+    4: LineupSize.QUARTET,
 }
 
 
-def slots_for(gig_type: GigType | None) -> tuple[Role, ...]:
-    if gig_type is None:
-        return ()
-    return LINEUP_SLOTS[gig_type]
+def lineup_size(slot_count: int) -> LineupSize | None:
+    """Solo, duo, trio or quartet by how many roles the gig needs; five or more is a full band."""
+    if slot_count <= 0:
+        return None
+    return _SIZES.get(slot_count, LineupSize.FULL_BAND)

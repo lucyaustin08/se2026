@@ -8,11 +8,13 @@ from app import seed
 from app.models import Base, Gig, Member
 
 
-def test_seeds_one_manager_and_a_member_for_every_role(db: Session) -> None:
+def test_seeds_a_manager_a_leader_and_a_member_for_every_role(db: Session) -> None:
     assert seed.seed_sample_band(db) is True
 
     members = db.scalars(select(Member)).all()
     assert sum(m.is_manager for m in members) == 1
+    leaders = [m for m in members if m.is_band_leader]
+    assert [(m.name, m.is_manager) for m in leaders] == [("Sam Rivera", False)]
     assert {m.primary_role for m in members if not m.is_manager} == {
         "rhythm_guitar_vocals",
         "lead_guitar",

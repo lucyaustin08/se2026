@@ -18,6 +18,7 @@ class MemberRead(BaseModel):
     name: str
     primary_role: Role | None
     is_manager: bool
+    is_band_leader: bool
 
 
 class MemberSummary(BaseModel):

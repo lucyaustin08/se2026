@@ -4,9 +4,9 @@ from typing import Any
 import pytest
 from sqlalchemy.orm import Session
 
-from app.models.enums import GigStatus, Role
+from app.models.enums import GigStatus, Role, SlotStatus
 from app.models.gig import Gig
-from app.repositories.gigs import GigRepository
+from app.repositories.gigs import GigRepository, MemberSlotFilter
 from app.schemas.gigs import GigSort
 from app.schemas.pagination import MAX_PAGE_SIZE
 from tests.factories import BLUE_DOOR_FIRST_SET, Factory
@@ -19,7 +19,7 @@ def search(
         "q": None,
         "statuses": None,
         "has_date": None,
-        "assigned_member_id": None,
+        "member_slot": None,
         "sort": GigSort.FIRST_SET_AT,
     }
     params.update(filters)
@@ -54,30 +54,62 @@ def test_filters_dated_and_undated(db: Session, make: Factory) -> None:
     assert search(db, has_date=None)[1] == 2
 
 
-def test_filters_by_assigned_member(db: Session, make: Factory) -> None:
-    member = make.member(role=Role.BASS)
-    theirs = make.gig()
+def test_filters_to_gigs_where_a_member_holds_a_slot_in_given_statuses(
+    db: Session, make: Factory
+) -> None:
+    member = make.member()
+    accepted = make.gig()
+    make.slot(accepted, Role.BASS, member, SlotStatus.ACCEPTED)
+    declined = make.gig()
+    make.slot(declined, Role.BASS, member, SlotStatus.DECLINED)
     make.gig()
-    make.assign(theirs, member, Role.BASS)
 
-    gigs, total = search(db, assigned_member_id=member.id)
+    gigs, total = search(
+        db, member_slot=MemberSlotFilter(member.id, frozenset({SlotStatus.ACCEPTED}))
+    )
 
-    assert ([g.id for g in gigs], total) == ([theirs.id], 1)
+    assert ([g.id for g in gigs], total) == ([accepted.id], 1)
 
 
-@pytest.mark.parametrize(
-    "q",
-    ["blue door", "MAIN ST", "pat", "morgan"],
-)
+def test_member_slot_filter_can_let_some_gig_statuses_through(db: Session, make: Factory) -> None:
+    member = make.member()
+    booked = make.gig(status=GigStatus.BOOKED)
+    make.gig(status=GigStatus.POTENTIAL)
+
+    gigs, _ = search(
+        db,
+        member_slot=MemberSlotFilter(
+            member.id, frozenset({SlotStatus.INVITED}), frozenset({GigStatus.BOOKED})
+        ),
+    )
+
+    assert [g.id for g in gigs] == [booked.id]
+
+
+def test_finds_other_gigs_a_member_accepted(db: Session, make: Factory) -> None:
+    member = make.member()
+    this_gig, accepted, invited, cancelled = (
+        make.gig(),
+        make.gig(),
+        make.gig(),
+        make.gig(status=GigStatus.CANCELLED),
+    )
+    make.slot(this_gig, Role.BASS, member, SlotStatus.ACCEPTED)
+    make.slot(accepted, Role.BASS, member, SlotStatus.ACCEPTED)
+    make.slot(invited, Role.BASS, member, SlotStatus.INVITED)
+    make.slot(cancelled, Role.BASS, member, SlotStatus.ACCEPTED)
+
+    found = GigRepository(db).accepted_by_member(member.id, exclude_gig_id=this_gig.id)
+
+    assert [g.id for g in found] == [accepted.id]
+
+
+@pytest.mark.parametrize("q", ["blue door", "MAIN ST", "pat"])
 def test_search_matches_venue_address_and_contact_names_case_insensitively(
     db: Session, make: Factory, q: str
 ) -> None:
-    gig = make.gig(
-        venue_name="The Blue Door",
-        venue_address="123 Main St",
-        venue_contact_name="Pat Lee",
-        booking_contact_name="Morgan Hale",
-    )
+    gig = make.gig(venue_name="The Blue Door", venue_address="123 Main St")
+    make.contact(gig, name="Pat Lee")
     make.gig(venue_name="Hub City Tap")
 
     gigs, total = search(db, q=q)

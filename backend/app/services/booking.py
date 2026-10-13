@@ -1,10 +1,8 @@
 """What a gig needs before the manager can book it."""
 
+from app.models.enums import SlotStatus
 from app.models.gig import Gig
-
-
-def _has_reachable_contact(name: str | None, phone: str | None, email: str | None) -> bool:
-    return bool(name) and bool(phone or email)
+from app.services.lineup import ROLE_LABELS, ROLE_ORDER
 
 
 def missing_for_booking(gig: Gig) -> list[str]:
@@ -16,15 +14,22 @@ def missing_for_booking(gig: Gig) -> list[str]:
         missing.append("venue name")
     if not gig.venue_address:
         missing.append("venue address")
-    if gig.gig_type is None:
-        missing.append("gig type")
     if gig.pay_cents is None:
         missing.append("pay")
-    has_contact = _has_reachable_contact(
-        gig.venue_contact_name, gig.venue_contact_phone, gig.venue_contact_email
-    ) or _has_reachable_contact(
-        gig.booking_contact_name, gig.booking_contact_phone, gig.booking_contact_email
-    )
-    if not has_contact:
+    if not any(contact.name and (contact.phone or contact.email) for contact in gig.contacts):
         missing.append("a contact with a name and a phone number or email")
+
+    if not gig.slots:
+        missing.append("at least one role in the lineup")
+    for slot in sorted(gig.slots, key=lambda s: ROLE_ORDER.index(s.role)):
+        if slot.status is not SlotStatus.ACCEPTED:
+            missing.append(f"an accepted member for {ROLE_LABELS[slot.role]}")
+    leader_accepted = any(
+        slot.status is SlotStatus.ACCEPTED
+        and slot.member is not None
+        and slot.member.is_band_leader
+        for slot in gig.slots
+    )
+    if not leader_accepted:
+        missing.append("the band leader, accepted into the lineup")
     return missing

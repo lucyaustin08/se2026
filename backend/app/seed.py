@@ -11,8 +11,8 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.database import create_db_engine, create_session_factory
-from app.models.enums import GigStatus, GigType, Role
-from app.models.gig import Gig, GigAssignment
+from app.models.enums import ContactLabel, GigStatus, Role, SlotStatus
+from app.models.gig import Gig, GigContact, GigSlot
 from app.models.member import Member
 from app.repositories.members import MemberRepository
 
@@ -25,7 +25,12 @@ def seed_sample_band(session: Session) -> bool:
         return False
 
     manager = Member(name="Jordan Avery", email="jordan@example.com", is_manager=True)
-    sam = Member(name="Sam Rivera", email="sam@example.com", primary_role=Role.RHYTHM_GUITAR_VOCALS)
+    sam = Member(
+        name="Sam Rivera",
+        email="sam@example.com",
+        primary_role=Role.RHYTHM_GUITAR_VOCALS,
+        is_band_leader=True,
+    )
     casey = Member(name="Casey Morgan", email="casey@example.com", primary_role=Role.LEAD_GUITAR)
     riley = Member(name="Riley Chen", email="riley@example.com", primary_role=Role.BASS)
     taylor = Member(name="Taylor Brooks", email="taylor@example.com", primary_role=Role.DRUMS)
@@ -33,40 +38,66 @@ def seed_sample_band(session: Session) -> bool:
     session.add_all([manager, sam, casey, riley, taylor, jamie])
     session.flush()
 
+    answered = datetime(2026, 10, 5, 16, 0, tzinfo=UTC)
     # 8:00 PM Eastern on October 18 (EDT) and November 2 (EST), stored in UTC.
     blue_door = Gig(
         status=GigStatus.BOOKED,
         first_set_at=datetime(2026, 10, 19, 0, 0, tzinfo=UTC),
         load_in_offset_minutes=120,
         soundcheck_offset_minutes=75,
+        performance_minutes=180,
         venue_name="The Blue Door",
         venue_address="123 Main St, Spartanburg, SC",
-        gig_type=GigType.DUO,
         pay_cents=40_000,
-        venue_contact_name="Pat Lee",
-        venue_contact_phone="555-0142",
-        venue_contact_email="pat@example.com",
+        slots=[
+            GigSlot(
+                role=Role.RHYTHM_GUITAR_VOCALS,
+                member=sam,
+                status=SlotStatus.ACCEPTED,
+                pay_cents=20_000,
+                responded_at=answered,
+            ),
+            GigSlot(
+                role=Role.LEAD_GUITAR,
+                member=casey,
+                status=SlotStatus.ACCEPTED,
+                pay_cents=20_000,
+                responded_at=answered,
+            ),
+        ],
+        contacts=[
+            GigContact(
+                label=ContactLabel.VENUE,
+                name="Pat Lee",
+                phone="555-0142",
+                email="pat@example.com",
+                notes="Load in through the alley door.",
+            )
+        ],
     )
-    blue_door.assignments = [
-        GigAssignment(slot=Role.RHYTHM_GUITAR_VOCALS, member_id=sam.id),
-        GigAssignment(slot=Role.LEAD_GUITAR, member_id=casey.id),
-    ]
     hub_city = Gig(
         status=GigStatus.POTENTIAL,
         first_set_at=datetime(2026, 11, 3, 1, 0, tzinfo=UTC),
-        load_in_offset_minutes=120,
-        soundcheck_offset_minutes=60,
         venue_name="Hub City Tap",
-        gig_type=GigType.FULL_BAND,
-        booking_contact_name="Morgan Hale",
-        booking_contact_email="morgan@example.com",
+        slots=[
+            GigSlot(role=Role.RHYTHM_GUITAR_VOCALS, member=sam, status=SlotStatus.INVITED),
+            GigSlot(
+                role=Role.LEAD_GUITAR,
+                member=casey,
+                status=SlotStatus.ACCEPTED,
+                responded_at=answered,
+            ),
+            GigSlot(
+                role=Role.BASS, member=riley, status=SlotStatus.DECLINED, responded_at=answered
+            ),
+            GigSlot(role=Role.DRUMS, status=SlotStatus.OPEN),
+            GigSlot(role=Role.SPECIALTY, member=jamie, status=SlotStatus.INVITED),
+        ],
+        contacts=[
+            GigContact(label=ContactLabel.BOOKING, name="Morgan Hale", email="morgan@example.com")
+        ],
     )
-    undated = Gig(
-        status=GigStatus.POTENTIAL,
-        load_in_offset_minutes=120,
-        soundcheck_offset_minutes=60,
-        venue_name="Wedding inquiry",
-    )
+    undated = Gig(status=GigStatus.POTENTIAL, venue_name="Wedding inquiry")
     session.add_all([blue_door, hub_city, undated])
     session.commit()
     return True

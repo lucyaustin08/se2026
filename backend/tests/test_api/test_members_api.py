@@ -16,8 +16,20 @@ async def test_lists_members_without_an_acting_member(client: AsyncClient, make:
     assert response.status_code == 200
     assert response.json() == {
         "items": [
-            {"id": manager.id, "name": "Jordan Avery", "primary_role": None, "is_manager": True},
-            {"id": bassist.id, "name": "Riley Chen", "primary_role": "bass", "is_manager": False},
+            {
+                "id": manager.id,
+                "name": "Jordan Avery",
+                "primary_role": None,
+                "is_manager": True,
+                "is_band_leader": False,
+            },
+            {
+                "id": bassist.id,
+                "name": "Riley Chen",
+                "primary_role": "bass",
+                "is_manager": False,
+                "is_band_leader": False,
+            },
         ],
         "total": 2,
         "page": 1,

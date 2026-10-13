@@ -9,7 +9,11 @@ from app.models.types import UTCDateTime, str_enum, utcnow
 
 
 class Member(Base):
-    """A person in the band. The manager is also a member, with `is_manager` set."""
+    """A person in the band.
+
+    The manager organizes gigs and doesn't play (`is_manager`). The band leader plays, and
+    every gig needs them in the lineup (`is_band_leader`).
+    """
 
     __tablename__ = "members"
 
@@ -18,4 +22,5 @@ class Member(Base):
     email: Mapped[str] = mapped_column(String(254), unique=True)
     primary_role: Mapped[Role | None] = mapped_column(str_enum(Role, "member_role"))
     is_manager: Mapped[bool] = mapped_column(default=False)
+    is_band_leader: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
