@@ -1,0 +1,7 @@
+# pnpm settings for this package.
+
+# Which dependencies may run install scripts. pnpm refuses to install while any are
+# undecided. MSW's script only copies a browser service worker, which we don't use
+# (tests run MSW in Node), so it is denied.
+allowBuilds:
+  msw: false

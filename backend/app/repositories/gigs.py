@@ -1,13 +1,14 @@
 from collections.abc import Collection
+from typing import Any
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.enums import GigStatus
 from app.models.gig import Gig, GigAssignment
 from app.schemas.gigs import GigSort
 
-_ORDER_BY = {
+_ORDER_BY: dict[GigSort, tuple[ColumnElement[Any], ...]] = {
     GigSort.FIRST_SET_AT: (Gig.first_set_at.asc().nulls_last(),),
     GigSort.FIRST_SET_AT_DESC: (Gig.first_set_at.desc().nulls_last(),),
     GigSort.CREATED_AT: (Gig.created_at.asc(),),
