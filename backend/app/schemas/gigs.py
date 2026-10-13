@@ -4,11 +4,11 @@ Input and output contacts are separate classes on purpose: a model with defaults
 FastAPI publish two OpenAPI schemas (`Contact-Input` and `Contact-Output`) for one name.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Annotated
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import AfterValidator, AwareDatetime, BaseModel, ConfigDict, Field, StringConstraints
 
 from app.models.enums import GigStatus, GigType, Role
 from app.models.gig import DEFAULT_LOAD_IN_OFFSET_MINUTES, DEFAULT_SOUNDCHECK_OFFSET_MINUTES
@@ -22,6 +22,9 @@ Email = Annotated[
     str,
     StringConstraints(strip_whitespace=True, max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$"),
 ]
+# Any time zone is accepted on input, and it's converted to UTC immediately, so responses
+# and the database only ever see UTC.
+UtcDatetime = Annotated[AwareDatetime, AfterValidator(lambda value: value.astimezone(UTC))]
 OffsetMinutes = Annotated[int, Field(ge=0, le=720)]
 PayCents = Annotated[int, Field(ge=0, le=100_000_000)]
 
@@ -55,7 +58,7 @@ class GigCreate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    first_set_at: AwareDatetime | None = None
+    first_set_at: UtcDatetime | None = None
     load_in_offset_minutes: OffsetMinutes = DEFAULT_LOAD_IN_OFFSET_MINUTES
     soundcheck_offset_minutes: OffsetMinutes = DEFAULT_SOUNDCHECK_OFFSET_MINUTES
     venue_name: Name | None = None
@@ -74,7 +77,7 @@ class GigUpdate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    first_set_at: AwareDatetime | None = None
+    first_set_at: UtcDatetime | None = None
     load_in_offset_minutes: OffsetMinutes | None = None
     soundcheck_offset_minutes: OffsetMinutes | None = None
     venue_name: Name | None = None

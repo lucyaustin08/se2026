@@ -26,11 +26,12 @@ def anyio_backend() -> str:
 
 
 @pytest.fixture
-def app() -> FastAPI:
+def app() -> Iterator[FastAPI]:
     """A fresh app backed by an in-memory SQLite database with every table created."""
     application = create_app(Settings(database_url="sqlite://"))
     Base.metadata.create_all(application.state.engine)
-    return application
+    yield application
+    application.state.engine.dispose()
 
 
 @pytest.fixture

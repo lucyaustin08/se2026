@@ -1,6 +1,6 @@
 """Business rules for gigs, tested through the service with a real (in-memory) database."""
 
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import pytest
@@ -166,6 +166,20 @@ def test_missing_for_booking_lists_every_gap_for_an_empty_draft(
 
 
 # ---- Editing ----------------------------------------------------------------------------------
+
+
+def test_times_sent_with_any_time_zone_are_returned_in_utc(
+    service: GigService, make: Factory
+) -> None:
+    eastern = timezone(timedelta(hours=-4))
+
+    detail = service.create_gig(
+        make.manager(), GigCreate(first_set_at=datetime(2026, 10, 18, 20, 0, tzinfo=eastern))
+    )
+
+    assert detail.first_set_at == BLUE_DOOR_FIRST_SET
+    assert detail.first_set_at is not None
+    assert detail.first_set_at.utcoffset() == timedelta(0)
 
 
 def test_editing_changes_only_the_fields_sent(service: GigService, make: Factory) -> None:
