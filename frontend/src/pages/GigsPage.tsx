@@ -5,7 +5,7 @@ import { api } from "../api/client";
 import { errorMessage, unwrap } from "../api/errors";
 import type { GigListItem, GigPage } from "../api/types";
 import { ErrorMessage, Loading } from "../components/QueryStates";
-import { formatDate, formatTime, GIG_STATUS_LABELS, GIG_TYPE_LABELS } from "../format";
+import { formatDate, formatTime, GIG_STATUS_LABELS, LINEUP_SIZE_LABELS } from "../format";
 import { useActingMember } from "../session";
 
 const PAGE_SIZE = 100;
@@ -21,10 +21,9 @@ export function GigsPage() {
         }),
       ),
   });
-  // Only the manager has drafts, so only the manager has undated gigs.
+  // Drafts without a date yet. Members see the ones they've been invited to.
   const undated = useQuery({
     queryKey: ["gigs", "undated"],
-    enabled: member.isManager,
     queryFn: () =>
       unwrap(
         api.GET("/api/v1/gigs", {
@@ -33,7 +32,7 @@ export function GigsPage() {
       ),
   });
 
-  const queries = member.isManager ? [dated, undated] : [dated];
+  const queries = [dated, undated];
   const failed = queries.find((query) => query.isError);
 
   return (
@@ -59,11 +58,7 @@ export function GigsPage() {
         ) : queries.some((query) => query.isPending) ? (
           <Loading label="Loading gigs…" />
         ) : (
-          <GigLists
-            dated={dated.data}
-            undated={member.isManager ? undated.data : undefined}
-            isManager={member.isManager}
-          />
+          <GigLists dated={dated.data} undated={undated.data} isManager={member.isManager} />
         )}
       </div>
     </section>
@@ -85,7 +80,7 @@ function GigLists({ dated, undated, isManager }: GigListsProps) {
       <p className="text-gray-700">
         {isManager
           ? "No gigs yet. Add your first gig to start tracking it."
-          : "No booked gigs yet."}
+          : "No gigs or invitations yet."}
       </p>
     );
   }
@@ -152,8 +147,14 @@ function GigRow({ gig }: { gig: GigListItem }) {
         <span className="block font-semibold">{gig.venue_name ?? "Untitled gig"}</span>
         <span className="block text-sm text-gray-700">{when}</span>
         <span className="mt-1 flex gap-3 text-sm">
-          <span>{gig.gig_type ? GIG_TYPE_LABELS[gig.gig_type] : "Type not set"}</span>
+          <span>{gig.lineup_size ? LINEUP_SIZE_LABELS[gig.lineup_size] : "No roles yet"}</span>
           <span className="font-medium">{GIG_STATUS_LABELS[gig.status]}</span>
+          {gig.my_slot_status === "invited" && (
+            <span className="rounded bg-brand-50 px-2 font-semibold">Invited: please answer</span>
+          )}
+          {gig.my_slot_status === "accepted" && gig.status === "potential" && (
+            <span>You accepted</span>
+          )}
         </span>
       </Link>
     </li>

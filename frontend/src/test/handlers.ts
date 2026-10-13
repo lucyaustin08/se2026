@@ -10,7 +10,9 @@ import type {
   GigDetail,
   GigPage,
   GigUpdate,
+  InvitationIn,
   MemberPage,
+  SlotOut,
 } from "../api/types";
 import { allMembers, blueDoor, gigDetails, hubCity, toListItem, undatedDraft } from "./fixtures";
 
@@ -54,6 +56,18 @@ function findGig(id: string | readonly string[] | undefined): GigDetail | undefi
 const notFound = () =>
   HttpResponse.json(errorBody("gig_not_found", "That gig doesn't exist."), { status: 404 });
 
+function updateSlot(
+  gig: GigDetail,
+  slotId: string | readonly string[] | undefined,
+  change: (slot: SlotOut) => SlotOut,
+): GigDetail | null {
+  if (!gig.slots.some((slot) => String(slot.id) === slotId)) return null;
+  return saveGig({
+    ...gig,
+    slots: gig.slots.map((slot) => (String(slot.id) === slotId ? change(slot) : slot)),
+  });
+}
+
 export const handlers = [
   http.get("*/api/v1/members", () => HttpResponse.json<MemberPage>(page(allMembers))),
 
@@ -76,9 +90,16 @@ export const handlers = [
       first_set_at: body.first_set_at ?? null,
       venue_name: body.venue_name ?? null,
       venue_address: body.venue_address ?? null,
-      gig_type: body.gig_type ?? null,
       pay_cents: body.pay_cents ?? null,
-      lineup: [],
+      slots: (body.roles ?? []).map((role, index) => ({
+        id: 900 + index,
+        role,
+        status: "open",
+        member: null,
+        pay_cents: null,
+        responded_at: null,
+      })),
+      contacts: [],
     };
     return HttpResponse.json(saveGig(created), {
       status: 201,
@@ -102,13 +123,6 @@ export const handlers = [
     const updated: GigDetail = { ...gig };
     if (body.venue_name !== undefined) updated.venue_name = body.venue_name;
     if (body.pay_cents !== undefined) updated.pay_cents = body.pay_cents;
-    if (body.lineup) {
-      updated.lineup = gig.lineup.map((slot) => {
-        const entry = body.lineup?.find((assignment) => assignment.slot === slot.slot);
-        const member = allMembers.find((candidate) => candidate.id === entry?.member_id);
-        return { slot: slot.slot, member: member ? { id: member.id, name: member.name } : null };
-      });
-    }
     return HttpResponse.json(saveGig(updated));
   }),
 
@@ -128,4 +142,53 @@ export const handlers = [
     }
     return HttpResponse.json(saveGig({ ...gig, status: "booked" }));
   }),
+
+  http.post("*/api/v1/gigs/:gigId/slots/:slotId/invite", async ({ request, params }) => {
+    const refused = requireActingMember(request);
+    if (refused) return refused;
+    const gig = findGig(params.gigId);
+    if (!gig) return notFound();
+    const body = (await request.json()) as InvitationIn;
+    const member = allMembers.find((candidate) => candidate.id === body.member_id);
+    const updated = updateSlot(gig, params.slotId, (slot) => ({
+      ...slot,
+      member: member ? { id: member.id, name: member.name } : null,
+      status: "invited",
+      pay_cents: body.pay_cents ?? null,
+      responded_at: null,
+    }));
+    return updated
+      ? HttpResponse.json(updated)
+      : HttpResponse.json(errorBody("slot_not_found", "That slot isn't part of this gig."), {
+          status: 404,
+        });
+  }),
+
+  http.patch("*/api/v1/gigs/:gigId/slots/:slotId", async ({ request, params }) => {
+    const refused = requireActingMember(request);
+    if (refused) return refused;
+    const gig = findGig(params.gigId);
+    if (!gig) return notFound();
+    const body = (await request.json()) as { pay_cents: number | null };
+    const updated = updateSlot(gig, params.slotId, (slot) => ({
+      ...slot,
+      pay_cents: body.pay_cents,
+    }));
+    return updated ? HttpResponse.json(updated) : notFound();
+  }),
+
+  ...(["accept", "decline"] as const).map((answer) =>
+    http.post(`*/api/v1/gigs/:gigId/slots/:slotId/${answer}`, ({ request, params }) => {
+      const refused = requireActingMember(request);
+      if (refused) return refused;
+      const gig = findGig(params.gigId);
+      if (!gig) return notFound();
+      const updated = updateSlot(gig, params.slotId, (slot) => ({
+        ...slot,
+        status: answer === "accept" ? "accepted" : "declined",
+        responded_at: "2026-10-13T12:00:00Z",
+      }));
+      return updated ? HttpResponse.json(updated) : notFound();
+    }),
+  ),
 ];

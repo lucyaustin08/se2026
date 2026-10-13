@@ -91,6 +91,7 @@ function MemberChoices({ members, onChoose }: MemberChoicesProps) {
                   <span className="block font-semibold">{member.name}</span>
                   <span className="block text-sm text-gray-700">
                     {member.primary_role ? ROLE_LABELS[member.primary_role] : "No role set"}
+                    {member.is_band_leader && " · Band leader"}
                   </span>
                 </button>
               </li>

@@ -1,24 +1,39 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useId, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useParams } from "react-router";
 
 import { api } from "../api/client";
 import { ApiError, errorMessage, unwrap } from "../api/errors";
-import type { GigDetail, LineupAssignmentIn } from "../api/types";
+import type { GigDetail, MemberRead, SlotOut } from "../api/types";
+import { TextField } from "../components/GigForm";
 import { ErrorMessage, Loading } from "../components/QueryStates";
 import {
+  CONTACT_LABELS,
   formatDate,
   formatMoney,
   formatTime,
   GIG_STATUS_LABELS,
-  GIG_TYPE_LABELS,
+  LINEUP_SIZE_LABELS,
   ROLE_LABELS,
+  SLOT_STATUS_LABELS,
 } from "../format";
 import { useActingMember } from "../session";
 import { gigQueryKey, useGig, useMembers } from "./gigQueries";
 
 const primaryButton =
   "rounded bg-brand-700 px-4 py-2 font-medium text-white hover:bg-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:opacity-60";
+const secondaryButton =
+  "rounded border border-gray-500 px-4 py-2 font-medium hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-brand-600 disabled:opacity-60";
+const MONEY_PATTERN = /^\d+(\.\d{1,2})?$/;
+
+/** Store a changed gig in the cache and refresh the lists that show it. */
+function useGigUpdated(gigId: number) {
+  const queryClient = useQueryClient();
+  return (updated: GigDetail) => {
+    queryClient.setQueryData(gigQueryKey(gigId), updated);
+    void queryClient.invalidateQueries({ queryKey: ["gigs"] });
+  };
+}
 
 export function GigDetailPage() {
   const gigId = Number(useParams().gigId);
@@ -55,6 +70,7 @@ function GigLoadError({ error, onRetry }: { error: Error; onRetry: () => void })
 function GigDetails({ gig }: { gig: GigDetail }) {
   const member = useActingMember();
   const notSet = <span className="text-gray-600">Not set</span>;
+  const mySlot = gig.slots.find((slot) => slot.id === gig.my_slot_id);
 
   return (
     <>
@@ -70,6 +86,8 @@ function GigDetails({ gig }: { gig: GigDetail }) {
         )}
       </div>
 
+      {mySlot && <MyInvitation gig={gig} slot={mySlot} />}
+
       <section aria-labelledby="schedule-heading" className="mt-6">
         <h2 id="schedule-heading" className="text-lg font-semibold">
           Schedule
@@ -81,6 +99,7 @@ function GigDetails({ gig }: { gig: GigDetail }) {
               <ScheduleItem label="Load-in" iso={gig.load_in_at} />
               <ScheduleItem label="Soundcheck" iso={gig.soundcheck_at} />
               <ScheduleItem label="First set" iso={gig.first_set_at} />
+              <ScheduleItem label="End" iso={gig.end_at} />
             </ol>
           </>
         ) : (
@@ -94,35 +113,54 @@ function GigDetails({ gig }: { gig: GigDetail }) {
         </h2>
         <dl className="mt-2 grid gap-x-6 gap-y-2 sm:grid-cols-[max-content_1fr]">
           <Detail term="Venue address">{gig.venue_address ?? notSet}</Detail>
-          <Detail term="Gig type">{gig.gig_type ? GIG_TYPE_LABELS[gig.gig_type] : notSet}</Detail>
+          <Detail term="Lineup">
+            {gig.lineup_size ? LINEUP_SIZE_LABELS[gig.lineup_size] : "No roles yet"}
+          </Detail>
           {member.isManager && (
-            <Detail term="Pay">
+            <Detail term="Total pay">
               {gig.pay_cents === null ? notSet : formatMoney(gig.pay_cents)}
             </Detail>
           )}
-          <Detail term="Venue contact">
-            <ContactText contact={gig.venue_contact} />
-          </Detail>
-          <Detail term="Booking contact">
-            <ContactText contact={gig.booking_contact} />
-          </Detail>
         </dl>
+      </section>
+
+      <section aria-labelledby="contacts-heading" className="mt-6">
+        <h2 id="contacts-heading" className="text-lg font-semibold">
+          Contacts
+        </h2>
+        {gig.contacts.length === 0 ? (
+          <p className="mt-1 text-gray-700">No contacts yet.</p>
+        ) : (
+          <ul className="mt-2 space-y-2">
+            {gig.contacts.map((contact) => (
+              <li key={contact.id}>
+                <span className="font-medium">{CONTACT_LABELS[contact.label]}:</span>{" "}
+                {[contact.name, contact.phone, contact.email].filter(Boolean).join(" · ")}
+                {contact.notes && <p className="text-sm text-gray-700">{contact.notes}</p>}
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section aria-labelledby="lineup-heading" className="mt-6">
         <h2 id="lineup-heading" className="text-lg font-semibold">
           Lineup
         </h2>
-        {gig.lineup.length === 0 ? (
-          <p className="mt-1 text-gray-700">Choose a gig type to set the lineup.</p>
+        {gig.slots.length === 0 ? (
+          <p className="mt-1 text-gray-700">
+            {member.isManager
+              ? "No roles yet. Choose the roles this gig needs under Edit details."
+              : "No roles yet."}
+          </p>
         ) : member.isManager ? (
-          <LineupEditor key={gig.lineup.map((slot) => slot.slot).join()} gig={gig} />
+          <ManagerLineup gig={gig} />
         ) : (
           <ul className="mt-2 space-y-1">
-            {gig.lineup.map((slot) => (
-              <li key={slot.slot}>
-                <span className="font-medium">{ROLE_LABELS[slot.slot]}:</span>{" "}
-                {slot.member ? slot.member.name : "Open"}
+            {gig.slots.map((slot) => (
+              <li key={slot.id}>
+                <span className="font-medium">{ROLE_LABELS[slot.role]}:</span>{" "}
+                {slot.member && slot.status === "accepted" ? slot.member.name : "Not confirmed yet"}
               </li>
             ))}
           </ul>
@@ -152,33 +190,67 @@ function Detail({ term, children }: { term: string; children: ReactNode }) {
   );
 }
 
-function ContactText({ contact }: { contact: GigDetail["venue_contact"] }) {
-  if (!contact) return <span className="text-gray-600">Not set</span>;
-  const parts = [contact.name, contact.phone, contact.email].filter(Boolean);
-  return <span>{parts.join(" · ")}</span>;
+/** A member's own invitation: what they're asked to play, their pay, and accept or decline. */
+function MyInvitation({ gig, slot }: { gig: GigDetail; slot: SlotOut }) {
+  const onUpdated = useGigUpdated(gig.id);
+  const answer = useMutation({
+    mutationFn: (choice: "accept" | "decline") =>
+      unwrap(
+        choice === "accept"
+          ? api.POST("/api/v1/gigs/{gig_id}/slots/{slot_id}/accept", {
+              params: { path: { gig_id: gig.id, slot_id: slot.id } },
+            })
+          : api.POST("/api/v1/gigs/{gig_id}/slots/{slot_id}/decline", {
+              params: { path: { gig_id: gig.id, slot_id: slot.id } },
+            }),
+      ),
+    onSuccess: onUpdated,
+  });
+
+  return (
+    <section
+      aria-labelledby="invitation-heading"
+      className="mt-4 rounded border border-brand-600 bg-brand-50 p-4"
+    >
+      <h2 id="invitation-heading" className="text-lg font-semibold">
+        Your invitation
+      </h2>
+      <p className="mt-1">
+        Role: <strong>{ROLE_LABELS[slot.role]}</strong>
+      </p>
+      <p>Your pay: {slot.pay_cents === null ? "Not set yet" : formatMoney(slot.pay_cents)}</p>
+      <p className="font-medium">{SLOT_STATUS_LABELS[slot.status]}</p>
+      {slot.status === "invited" && gig.status === "potential" && (
+        <div className="mt-3 flex flex-wrap gap-3">
+          <button
+            type="button"
+            className={primaryButton}
+            disabled={answer.isPending}
+            onClick={() => answer.mutate("accept")}
+          >
+            Accept
+          </button>
+          <button
+            type="button"
+            className={secondaryButton}
+            disabled={answer.isPending}
+            onClick={() => answer.mutate("decline")}
+          >
+            Decline
+          </button>
+        </div>
+      )}
+      {answer.isError && (
+        <div className="mt-3">
+          <ErrorMessage message={errorMessage(answer.error)} />
+        </div>
+      )}
+    </section>
+  );
 }
 
-function LineupEditor({ gig }: { gig: GigDetail }) {
-  const queryClient = useQueryClient();
+function ManagerLineup({ gig }: { gig: GigDetail }) {
   const members = useMembers();
-  const [choices, setChoices] = useState<Record<string, string>>(() =>
-    Object.fromEntries(
-      gig.lineup.map((slot) => [slot.slot, slot.member ? String(slot.member.id) : ""]),
-    ),
-  );
-  const save = useMutation({
-    mutationFn: (lineup: LineupAssignmentIn[]) =>
-      unwrap(
-        api.PATCH("/api/v1/gigs/{gig_id}", {
-          params: { path: { gig_id: gig.id } },
-          body: { lineup },
-        }),
-      ),
-    onSuccess: (updated) => {
-      queryClient.setQueryData(gigQueryKey(gig.id), updated);
-      void queryClient.invalidateQueries({ queryKey: ["gigs"] });
-    },
-  });
 
   if (members.isPending) return <Loading label="Loading band members…" />;
   if (members.isError) {
@@ -186,67 +258,129 @@ function LineupEditor({ gig }: { gig: GigDetail }) {
       <ErrorMessage message={errorMessage(members.error)} onRetry={() => void members.refetch()} />
     );
   }
+  const players = members.data.items.filter((candidate) => !candidate.is_manager);
+
+  return (
+    <ul className="mt-2 space-y-4">
+      {gig.slots.map((slot) => (
+        <li key={slot.id} className="rounded border border-gray-200 p-3">
+          <h3 className="font-semibold">{ROLE_LABELS[slot.role]}</h3>
+          <p>
+            {slot.member ? slot.member.name : "Nobody invited yet"}
+            {slot.member && ` · ${SLOT_STATUS_LABELS[slot.status]}`}
+            {slot.pay_cents !== null && ` · ${formatMoney(slot.pay_cents)}`}
+          </p>
+          {gig.status === "potential" && slot.status !== "accepted" && (
+            <InviteForm gig={gig} slot={slot} players={players} />
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+interface InviteFormProps {
+  gig: GigDetail;
+  slot: SlotOut;
+  players: MemberRead[];
+}
+
+function InviteForm({ gig, slot, players }: InviteFormProps) {
+  const id = useId();
+  const roleLabel = ROLE_LABELS[slot.role];
+  const [memberId, setMemberId] = useState(slot.member ? String(slot.member.id) : "");
+  const [pay, setPay] = useState(slot.pay_cents === null ? "" : (slot.pay_cents / 100).toFixed(2));
+  const [payError, setPayError] = useState<string | undefined>();
+  const onUpdated = useGigUpdated(gig.id);
+  const invite = useMutation({
+    mutationFn: (body: { member_id: number; pay_cents: number | null }) =>
+      unwrap(
+        api.POST("/api/v1/gigs/{gig_id}/slots/{slot_id}/invite", {
+          params: { path: { gig_id: gig.id, slot_id: slot.id } },
+          body,
+        }),
+      ),
+    onSuccess: onUpdated,
+  });
+
+  // Members who usually play this role are listed first; anyone can be asked as a backup.
+  const usual = players.filter((player) => player.primary_role === slot.role);
+  const others = players.filter((player) => player.primary_role !== slot.role);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const lineup = gig.lineup
-      .filter((slot) => choices[slot.slot])
-      .map((slot) => ({ slot: slot.slot, member_id: Number(choices[slot.slot]) }));
-    save.mutate(lineup);
+    if (pay.trim() && !MONEY_PATTERN.test(pay.trim())) {
+      setPayError("Enter pay as a dollar amount, like 150 or 150.50.");
+      return;
+    }
+    setPayError(undefined);
+    invite.mutate({
+      member_id: Number(memberId),
+      pay_cents: pay.trim() ? Math.round(Number(pay.trim()) * 100) : null,
+    });
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mt-2 max-w-md space-y-3">
-      {gig.lineup.map((slot) => {
-        const id = `lineup-${slot.slot}`;
-        const eligible = members.data.items.filter(
-          (candidate) => !candidate.is_manager && candidate.primary_role === slot.slot,
-        );
-        return (
-          <div key={slot.slot}>
-            <label htmlFor={id} className="block font-medium">
-              {ROLE_LABELS[slot.slot]}
-            </label>
-            <select
-              id={id}
-              value={choices[slot.slot] ?? ""}
-              onChange={(event) =>
-                setChoices((previous) => ({ ...previous, [slot.slot]: event.target.value }))
-              }
-              className="mt-1 w-full rounded border border-gray-400 px-3 py-2 focus-visible:outline-2 focus-visible:outline-brand-600"
-            >
-              <option value="">Open</option>
-              {eligible.map((candidate) => (
-                <option key={candidate.id} value={String(candidate.id)}>
-                  {candidate.name}
+    <form onSubmit={handleSubmit} noValidate className="mt-2 grid gap-3 sm:grid-cols-3">
+      <div>
+        <label htmlFor={`${id}-member`} className="block text-sm font-medium">
+          Invite for {roleLabel}
+        </label>
+        <select
+          id={`${id}-member`}
+          value={memberId}
+          onChange={(event) => setMemberId(event.target.value)}
+          className="mt-1 w-full rounded border border-gray-400 px-3 py-2 focus-visible:outline-2 focus-visible:outline-brand-600"
+        >
+          <option value="">Choose a member</option>
+          {usual.length > 0 && (
+            <optgroup label={`Plays ${roleLabel}`}>
+              {usual.map((player) => (
+                <option key={player.id} value={String(player.id)}>
+                  {player.name}
                 </option>
               ))}
-            </select>
-          </div>
-        );
-      })}
-      {save.isError && <ErrorMessage message={errorMessage(save.error)} />}
-      {save.isSuccess && (
-        <p role="status" className="text-green-900">
-          Lineup saved.
-        </p>
+            </optgroup>
+          )}
+          {others.length > 0 && (
+            <optgroup label="Backups">
+              {others.map((player) => (
+                <option key={player.id} value={String(player.id)}>
+                  {player.name}
+                </option>
+              ))}
+            </optgroup>
+          )}
+        </select>
+      </div>
+      <TextField
+        id={`${id}-pay`}
+        label={`Pay for ${roleLabel} (USD)`}
+        inputMode="decimal"
+        value={pay}
+        error={payError}
+        onChange={setPay}
+      />
+      <div className="flex items-end">
+        <button type="submit" className={primaryButton} disabled={!memberId || invite.isPending}>
+          {slot.member ? "Send new invitation" : "Send invitation"}
+        </button>
+      </div>
+      {invite.isError && (
+        <div className="sm:col-span-3">
+          <ErrorMessage message={errorMessage(invite.error)} />
+        </div>
       )}
-      <button type="submit" disabled={save.isPending} className={primaryButton}>
-        {save.isPending ? "Saving…" : "Save lineup"}
-      </button>
     </form>
   );
 }
 
 function BookingPanel({ gig }: { gig: GigDetail }) {
-  const queryClient = useQueryClient();
+  const onUpdated = useGigUpdated(gig.id);
   const book = useMutation({
     mutationFn: () =>
       unwrap(api.POST("/api/v1/gigs/{gig_id}/book", { params: { path: { gig_id: gig.id } } })),
-    onSuccess: (updated) => {
-      queryClient.setQueryData(gigQueryKey(gig.id), updated);
-      void queryClient.invalidateQueries({ queryKey: ["gigs"] });
-    },
+    onSuccess: onUpdated,
   });
 
   return (
@@ -264,7 +398,7 @@ function BookingPanel({ gig }: { gig: GigDetail }) {
           </ul>
         </>
       ) : (
-        <p className="mt-1">Everything booking needs is filled in.</p>
+        <p className="mt-1">Everyone has accepted and everything booking needs is filled in.</p>
       )}
       {book.isError && (
         <div className="mt-3">

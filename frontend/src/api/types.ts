@@ -4,15 +4,20 @@ import type { components } from "./schema";
 
 type Schemas = components["schemas"];
 
+export type ContactIn = Schemas["ContactIn"];
+export type ContactLabel = Schemas["ContactLabel"];
+export type ContactOut = Schemas["ContactOut"];
 export type ErrorResponse = Schemas["ErrorResponse"];
 export type GigCreate = Schemas["GigCreate"];
 export type GigDetail = Schemas["GigDetail"];
 export type GigListItem = Schemas["GigListItem"];
 export type GigPage = Schemas["GigPage"];
 export type GigStatus = Schemas["GigStatus"];
-export type GigType = Schemas["GigType"];
 export type GigUpdate = Schemas["GigUpdate"];
-export type LineupAssignmentIn = Schemas["LineupAssignmentIn"];
+export type InvitationIn = Schemas["InvitationIn"];
+export type LineupSize = Schemas["LineupSize"];
 export type MemberPage = Schemas["MemberPage"];
 export type MemberRead = Schemas["MemberRead"];
 export type Role = Schemas["Role"];
+export type SlotOut = Schemas["SlotOut"];
+export type SlotStatus = Schemas["SlotStatus"];

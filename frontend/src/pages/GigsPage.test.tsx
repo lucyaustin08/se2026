@@ -2,7 +2,15 @@ import { screen, within } from "@testing-library/react";
 import { delay, http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
-import { asManager, asRiley, asSam, blueDoor, restricted, toListItem } from "../test/fixtures";
+import {
+  asManager,
+  asRiley,
+  asSam,
+  blueDoor,
+  restricted,
+  rileyInvitation,
+  toListItem,
+} from "../test/fixtures";
 import { errorBody } from "../test/handlers";
 import { renderApp } from "../test/render";
 import { server } from "../test/server";
@@ -53,12 +61,12 @@ describe("gigs page", () => {
     ).toBeInTheDocument();
   });
 
-  it("tells a member when nothing is booked", async () => {
+  it("tells a member when they have no gigs or invitations", async () => {
     server.use(http.get("*/api/v1/gigs", () => HttpResponse.json(emptyPage)));
 
     renderApp("/gigs", { as: asSam });
 
-    expect(await screen.findByText("No booked gigs yet.")).toBeInTheDocument();
+    expect(await screen.findByText("No gigs or invitations yet.")).toBeInTheDocument();
   });
 
   it("lists the manager's gigs by date, then the undated drafts", async () => {
@@ -89,10 +97,28 @@ describe("gigs page", () => {
     ).toBeInTheDocument();
   });
 
+  it("flags a member's open invitations", async () => {
+    server.use(
+      http.get("*/api/v1/gigs", ({ request }) =>
+        new URL(request.url).searchParams.get("has_date") === "true"
+          ? HttpResponse.json({ ...emptyPage, items: [toListItem(rileyInvitation)], total: 1 })
+          : HttpResponse.json(emptyPage),
+      ),
+    );
+
+    renderApp("/gigs", { as: asRiley });
+
+    expect(await screen.findByRole("link", { name: /Morgan's Pub/ })).toHaveTextContent(
+      "Invited: please answer",
+    );
+  });
+
   it("shows a member the gigs they're not on as 'Not assigned' rows that don't open", async () => {
     server.use(
-      http.get("*/api/v1/gigs", () =>
-        HttpResponse.json({ ...emptyPage, items: [restricted(blueDoor)], total: 1 }),
+      http.get("*/api/v1/gigs", ({ request }) =>
+        new URL(request.url).searchParams.get("has_date") === "true"
+          ? HttpResponse.json({ ...emptyPage, items: [restricted(blueDoor)], total: 1 })
+          : HttpResponse.json(emptyPage),
       ),
     );
 
@@ -108,8 +134,10 @@ describe("gigs page", () => {
 
   it("says when only some gigs are shown", async () => {
     server.use(
-      http.get("*/api/v1/gigs", () =>
-        HttpResponse.json({ ...emptyPage, items: [toListItem(blueDoor)], total: 150 }),
+      http.get("*/api/v1/gigs", ({ request }) =>
+        new URL(request.url).searchParams.get("has_date") === "true"
+          ? HttpResponse.json({ ...emptyPage, items: [toListItem(blueDoor)], total: 150 })
+          : HttpResponse.json(emptyPage),
       ),
     );
 

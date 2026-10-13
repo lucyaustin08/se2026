@@ -9,7 +9,7 @@ import { renderApp } from "../test/render";
 import { server } from "../test/server";
 
 describe("add gig page", () => {
-  it("saves a potential gig and opens it", async () => {
+  it("saves a potential gig with roles and contacts, then opens it", async () => {
     let sent: GigCreate | undefined;
     server.use(
       http.post("*/api/v1/gigs", async ({ request }) => {
@@ -25,10 +25,16 @@ describe("add gig page", () => {
     await user.type(screen.getByLabelText("Date"), "2026-10-18");
     await user.type(screen.getByLabelText("First set time"), "20:00");
     await user.type(screen.getByLabelText("Venue name"), "The Blue Door");
-    await user.selectOptions(screen.getByLabelText("Gig type"), "Duo");
-    await user.type(screen.getByLabelText("Pay (USD, whole gig)"), "400.50");
-    await user.type(screen.getByLabelText("Venue contact name"), "Pat Lee");
-    await user.type(screen.getByLabelText("Venue contact phone"), "555-0142");
+    await user.type(screen.getByLabelText("Total pay for the gig (USD)"), "400.50");
+    await user.click(screen.getByRole("checkbox", { name: "Lead guitar" }));
+    await user.click(screen.getByRole("checkbox", { name: "Rhythm guitar / vocals" }));
+    await user.click(screen.getByRole("button", { name: "Add contact" }));
+    await user.type(screen.getByLabelText("Contact 1 name"), "Pat Lee");
+    await user.type(screen.getByLabelText("Contact 1 phone"), "555-0142");
+    await user.type(screen.getByLabelText("Contact 1 notes"), "Alley door");
+    await user.click(screen.getByRole("button", { name: "Add contact" }));
+    await user.selectOptions(screen.getByLabelText("Contact 2 type"), "Booking");
+    await user.type(screen.getByLabelText("Contact 2 email"), "morgan@example.com");
     await user.click(screen.getByRole("button", { name: "Save gig" }));
 
     expect(
@@ -39,22 +45,48 @@ describe("add gig page", () => {
       first_set_at: "2026-10-19T00:00:00.000Z",
       load_in_offset_minutes: 120,
       soundcheck_offset_minutes: 60,
+      performance_minutes: 180,
       venue_name: "The Blue Door",
       venue_address: null,
-      gig_type: "duo",
       pay_cents: 40050,
-      venue_contact: { name: "Pat Lee", phone: "555-0142", email: null },
-      booking_contact: null,
+      // Always sent in band order, whatever order they were ticked in.
+      roles: ["rhythm_guitar_vocals", "lead_guitar"],
+      contacts: [
+        { label: "venue", name: "Pat Lee", phone: "555-0142", email: null, notes: "Alley door" },
+        { label: "booking", name: null, phone: null, email: "morgan@example.com", notes: null },
+      ],
     });
   });
 
   it("can save a draft with nothing filled in", async () => {
+    let sent: GigCreate | undefined;
+    server.use(
+      http.post("*/api/v1/gigs", async ({ request }) => {
+        sent = (await request.json()) as GigCreate;
+        return HttpResponse.json(saveGig({ ...hubCity, id: 99, venue_name: null }), {
+          status: 201,
+        });
+      }),
+    );
     const { user, router } = renderApp("/gigs/new", { as: asManager });
 
+    await user.click(screen.getByRole("button", { name: "Add contact" }));
     await user.click(screen.getByRole("button", { name: "Save gig" }));
 
     await screen.findByRole("heading", { level: 1, name: "Untitled gig" });
     expect(router.state.location.pathname).toBe("/gigs/99");
+    // A contact row left blank is dropped rather than sent.
+    expect(sent?.contacts).toEqual([]);
+  });
+
+  it("removes a contact", async () => {
+    const { user } = renderApp("/gigs/new", { as: asManager });
+
+    await user.click(screen.getByRole("button", { name: "Add contact" }));
+    await user.click(screen.getByRole("button", { name: "Remove contact 1" }));
+
+    expect(screen.queryByLabelText("Contact 1 name")).not.toBeInTheDocument();
+    expect(screen.getByText("No contacts yet.")).toBeInTheDocument();
   });
 
   it.each([
@@ -71,22 +103,10 @@ describe("add gig page", () => {
       message: "Enter a date, or clear the first set time.",
     },
     {
-      field: "Pay (USD, whole gig)",
+      field: "Total pay for the gig (USD)",
       value: "lots",
-      errorOn: "Pay (USD, whole gig)",
+      errorOn: "Total pay for the gig (USD)",
       message: "Enter pay as a dollar amount, like 400 or 400.50.",
-    },
-    {
-      field: "Venue contact email",
-      value: "pat-at-example",
-      errorOn: "Venue contact email",
-      message: "Enter an email address like name@example.com.",
-    },
-    {
-      field: "Booking contact email",
-      value: "nope",
-      errorOn: "Booking contact email",
-      message: "Enter an email address like name@example.com.",
     },
   ])("ties '$message' to $errorOn", async ({ field, value, errorOn, message }) => {
     let posted = false;
@@ -108,21 +128,32 @@ describe("add gig page", () => {
     expect(posted).toBe(false);
   });
 
-  it.each(["Load-in (minutes before first set)", "Soundcheck (minutes before first set)"])(
-    "requires whole minutes from 0 to 720 for %s",
-    async (label) => {
-      const { user } = renderApp("/gigs/new", { as: asManager });
+  it("ties an invalid contact email to that contact's email field", async () => {
+    const { user } = renderApp("/gigs/new", { as: asManager });
 
-      const input = screen.getByLabelText(label);
-      await user.clear(input);
-      await user.type(input, "721");
-      await user.click(screen.getByRole("button", { name: "Save gig" }));
+    await user.click(screen.getByRole("button", { name: "Add contact" }));
+    const email = screen.getByLabelText("Contact 1 email");
+    await user.type(email, "pat-at-example");
+    await user.click(screen.getByRole("button", { name: "Save gig" }));
 
-      expect(input).toHaveAccessibleDescription(
-        expect.stringContaining("Enter whole minutes from 0 to 720."),
-      );
-    },
-  );
+    expect(email).toHaveAccessibleDescription("Enter an email address like name@example.com.");
+    expect(email).toHaveFocus();
+  });
+
+  it.each([
+    ["Load-in (minutes before first set)", "721", "Enter whole minutes from 0 to 720."],
+    ["Soundcheck (minutes before first set)", "721", "Enter whole minutes from 0 to 720."],
+    ["Length (minutes from first set to the end)", "10", "Enter whole minutes from 15 to 720."],
+  ])("checks the range of %s", async (label, value, message) => {
+    const { user } = renderApp("/gigs/new", { as: asManager });
+
+    const input = screen.getByLabelText(label);
+    await user.clear(input);
+    await user.type(input, value);
+    await user.click(screen.getByRole("button", { name: "Save gig" }));
+
+    expect(input).toHaveAccessibleDescription(expect.stringContaining(message));
+  });
 
   it("shows the server's message when saving is refused", async () => {
     server.use(

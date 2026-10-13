@@ -1,74 +1,95 @@
-import { useId, useState, type FormEvent, type ReactNode } from "react";
+import { useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 
-import type { GigCreate, GigDetail, GigType } from "../api/types";
-import { GIG_TYPE_LABELS, localInputsToIso, toDateInputValue, toTimeInputValue } from "../format";
+import type { ContactIn, ContactLabel, GigCreate, GigDetail, Role } from "../api/types";
+import {
+  CONTACT_LABELS,
+  localInputsToIso,
+  ROLE_LABELS,
+  ROLES,
+  toDateInputValue,
+  toTimeInputValue,
+} from "../format";
 import { ErrorMessage } from "./QueryStates";
+
+export interface ContactValues {
+  key: number;
+  label: ContactLabel;
+  name: string;
+  phone: string;
+  email: string;
+  notes: string;
+}
 
 export interface GigFormValues {
   date: string;
   time: string;
   loadInMinutes: string;
   soundcheckMinutes: string;
+  performanceMinutes: string;
   venueName: string;
   venueAddress: string;
-  gigType: GigType | "";
   pay: string;
-  venueContactName: string;
-  venueContactPhone: string;
-  venueContactEmail: string;
-  bookingContactName: string;
-  bookingContactPhone: string;
-  bookingContactEmail: string;
+  roles: Role[];
+  contacts: ContactValues[];
 }
 
-export type GigFormErrors = Partial<Record<keyof GigFormValues, string>>;
+/** Errors by field name. Contact fields are named like `contacts.0.email`. */
+export type GigFormErrors = Record<string, string>;
 
 export const EMPTY_GIG_FORM: GigFormValues = {
   date: "",
   time: "",
   loadInMinutes: "120",
   soundcheckMinutes: "60",
+  performanceMinutes: "180",
   venueName: "",
   venueAddress: "",
-  gigType: "",
   pay: "",
-  venueContactName: "",
-  venueContactPhone: "",
-  venueContactEmail: "",
-  bookingContactName: "",
-  bookingContactPhone: "",
-  bookingContactEmail: "",
+  roles: [],
+  contacts: [],
 };
 
 const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const MONEY_PATTERN = /^\d+(\.\d{1,2})?$/;
 const MINUTES_PATTERN = /^\d+$/;
-const MAX_OFFSET_MINUTES = 720;
 
-/** Checks that only the browser can catch early. The server re-checks everything. */
+function minutesError(raw: string, min: number, max: number): string | null {
+  const value = raw.trim();
+  if (!MINUTES_PATTERN.test(value) || Number(value) < min || Number(value) > max) {
+    return `Enter whole minutes from ${min} to ${max}.`;
+  }
+  return null;
+}
+
+function isBlankContact(contact: ContactValues): boolean {
+  return ![contact.name, contact.phone, contact.email, contact.notes].some((v) => v.trim());
+}
+
+/** Checks the browser can make early. The server re-checks everything. */
 export function validateGigForm(values: GigFormValues): GigFormErrors {
   const errors: GigFormErrors = {};
-  if (values.date && !values.time) {
-    errors.time = "Enter a first set time, or clear the date.";
+  if (values.date && !values.time) errors.time = "Enter a first set time, or clear the date.";
+  if (values.time && !values.date) errors.date = "Enter a date, or clear the first set time.";
+
+  const minuteRules = [
+    ["loadInMinutes", 0, 720],
+    ["soundcheckMinutes", 0, 720],
+    ["performanceMinutes", 15, 720],
+  ] as const;
+  for (const [field, min, max] of minuteRules) {
+    const message = minutesError(values[field], min, max);
+    if (message) errors[field] = message;
   }
-  if (values.time && !values.date) {
-    errors.date = "Enter a date, or clear the first set time.";
-  }
-  for (const field of ["loadInMinutes", "soundcheckMinutes"] as const) {
-    const raw = values[field].trim();
-    if (!MINUTES_PATTERN.test(raw) || Number(raw) > MAX_OFFSET_MINUTES) {
-      errors[field] = `Enter whole minutes from 0 to ${MAX_OFFSET_MINUTES}.`;
-    }
-  }
+
   if (values.pay.trim() && !MONEY_PATTERN.test(values.pay.trim())) {
     errors.pay = "Enter pay as a dollar amount, like 400 or 400.50.";
   }
-  for (const field of ["venueContactEmail", "bookingContactEmail"] as const) {
-    const raw = values[field].trim();
-    if (raw && !EMAIL_PATTERN.test(raw)) {
-      errors[field] = "Enter an email address like name@example.com.";
+  values.contacts.forEach((contact, index) => {
+    const email = contact.email.trim();
+    if (email && !EMAIL_PATTERN.test(email)) {
+      errors[`contacts.${index}.email`] = "Enter an email address like name@example.com.";
     }
-  }
+  });
   return errors;
 }
 
@@ -77,31 +98,27 @@ function textOrNull(value: string): string | null {
   return trimmed ? trimmed : null;
 }
 
-function contact(name: string, phone: string, email: string) {
-  const result = { name: textOrNull(name), phone: textOrNull(phone), email: textOrNull(email) };
-  return result.name || result.phone || result.email ? result : null;
-}
-
 /** The request body for a valid form. Empty fields are sent as null, which clears them. */
 export function toGigBody(values: GigFormValues): GigCreate {
+  const contacts: ContactIn[] = values.contacts
+    .filter((contact) => !isBlankContact(contact))
+    .map((contact) => ({
+      label: contact.label,
+      name: textOrNull(contact.name),
+      phone: textOrNull(contact.phone),
+      email: textOrNull(contact.email),
+      notes: textOrNull(contact.notes),
+    }));
   return {
     first_set_at: values.date && values.time ? localInputsToIso(values.date, values.time) : null,
     load_in_offset_minutes: Number(values.loadInMinutes.trim()),
     soundcheck_offset_minutes: Number(values.soundcheckMinutes.trim()),
+    performance_minutes: Number(values.performanceMinutes.trim()),
     venue_name: textOrNull(values.venueName),
     venue_address: textOrNull(values.venueAddress),
-    gig_type: values.gigType || null,
     pay_cents: values.pay.trim() ? Math.round(Number(values.pay.trim()) * 100) : null,
-    venue_contact: contact(
-      values.venueContactName,
-      values.venueContactPhone,
-      values.venueContactEmail,
-    ),
-    booking_contact: contact(
-      values.bookingContactName,
-      values.bookingContactPhone,
-      values.bookingContactEmail,
-    ),
+    roles: ROLES.filter((role) => values.roles.includes(role)),
+    contacts,
   };
 }
 
@@ -111,16 +128,19 @@ export function gigToFormValues(gig: GigDetail): GigFormValues {
     time: gig.first_set_at ? toTimeInputValue(gig.first_set_at) : "",
     loadInMinutes: String(gig.load_in_offset_minutes),
     soundcheckMinutes: String(gig.soundcheck_offset_minutes),
+    performanceMinutes: String(gig.performance_minutes),
     venueName: gig.venue_name ?? "",
     venueAddress: gig.venue_address ?? "",
-    gigType: gig.gig_type ?? "",
     pay: gig.pay_cents === null ? "" : (gig.pay_cents / 100).toFixed(2),
-    venueContactName: gig.venue_contact?.name ?? "",
-    venueContactPhone: gig.venue_contact?.phone ?? "",
-    venueContactEmail: gig.venue_contact?.email ?? "",
-    bookingContactName: gig.booking_contact?.name ?? "",
-    bookingContactPhone: gig.booking_contact?.phone ?? "",
-    bookingContactEmail: gig.booking_contact?.email ?? "",
+    roles: gig.slots.map((slot) => slot.role),
+    contacts: gig.contacts.map((contact, index) => ({
+      key: index,
+      label: contact.label,
+      name: contact.name ?? "",
+      phone: contact.phone ?? "",
+      email: contact.email ?? "",
+      notes: contact.notes ?? "",
+    })),
   };
 }
 
@@ -132,6 +152,11 @@ interface GigFormProps {
   onSubmit: (body: GigCreate) => void;
 }
 
+const inputClass =
+  "mt-1 w-full rounded border px-3 py-2 focus-visible:outline-2 focus-visible:outline-brand-600";
+const secondaryButton =
+  "rounded border border-gray-400 px-3 py-1 text-sm hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-brand-600";
+
 export function GigForm({
   initialValues = EMPTY_GIG_FORM,
   submitLabel,
@@ -142,20 +167,48 @@ export function GigForm({
   const formId = useId();
   const [values, setValues] = useState<GigFormValues>(initialValues);
   const [errors, setErrors] = useState<GigFormErrors>({});
+  const nextContactKey = useRef(initialValues.contacts.length);
 
-  const fieldId = (field: keyof GigFormValues) => `${formId}-${field}`;
+  const fieldId = (field: string) => `${formId}-${field.replace(/\./g, "-")}`;
 
-  function update(field: keyof GigFormValues, value: string) {
+  function update<K extends keyof GigFormValues>(field: K, value: GigFormValues[K]) {
     setValues((previous) => ({ ...previous, [field]: value }));
+  }
+
+  function updateContact(index: number, field: keyof ContactValues, value: string) {
+    setValues((previous) => ({
+      ...previous,
+      contacts: previous.contacts.map((contact, i) =>
+        i === index ? { ...contact, [field]: value } : contact,
+      ),
+    }));
+  }
+
+  function addContact() {
+    const key = nextContactKey.current++;
+    update("contacts", [
+      ...values.contacts,
+      { key, label: "venue", name: "", phone: "", email: "", notes: "" },
+    ]);
+  }
+
+  function removeContact(index: number) {
+    update(
+      "contacts",
+      values.contacts.filter((_, i) => i !== index),
+    );
+    setErrors({});
+  }
+
+  function toggleRole(role: Role, checked: boolean) {
+    update("roles", checked ? [...values.roles, role] : values.roles.filter((r) => r !== role));
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const found = validateGigForm(values);
     setErrors(found);
-    const firstInvalid = (Object.keys(EMPTY_GIG_FORM) as (keyof GigFormValues)[]).find(
-      (field) => found[field],
-    );
+    const firstInvalid = Object.keys(found)[0];
     if (firstInvalid) {
       document.getElementById(fieldId(firstInvalid))?.focus();
       return;
@@ -163,8 +216,8 @@ export function GigForm({
     onSubmit(toGigBody(values));
   }
 
-  const input = (
-    field: keyof GigFormValues,
+  const textField = (
+    field: Exclude<keyof GigFormValues, "roles" | "contacts">,
     label: string,
     options: { type?: string; inputMode?: "numeric" | "decimal"; hint?: string } = {},
   ) => (
@@ -188,59 +241,114 @@ export function GigForm({
 
       <Fieldset legend="When">
         <div className="grid gap-4 sm:grid-cols-2">
-          {input("date", "Date", { type: "date" })}
-          {input("time", "First set time", { type: "time" })}
-          {input("loadInMinutes", "Load-in (minutes before first set)", {
+          {textField("date", "Date", { type: "date" })}
+          {textField("time", "First set time", { type: "time" })}
+          {textField("loadInMinutes", "Load-in (minutes before first set)", {
             inputMode: "numeric",
             hint: "Usually 120.",
           })}
-          {input("soundcheckMinutes", "Soundcheck (minutes before first set)", {
+          {textField("soundcheckMinutes", "Soundcheck (minutes before first set)", {
             inputMode: "numeric",
             hint: "Usually 60.",
+          })}
+          {textField("performanceMinutes", "Length (minutes from first set to the end)", {
+            inputMode: "numeric",
+            hint: "Usually 180.",
           })}
         </div>
       </Fieldset>
 
-      <Fieldset legend="Where and what">
+      <Fieldset legend="Where and pay">
         <div className="grid gap-4 sm:grid-cols-2">
-          {input("venueName", "Venue name")}
-          {input("venueAddress", "Venue address")}
-          <div>
-            <label htmlFor={fieldId("gigType")} className="block font-medium">
-              Gig type
+          {textField("venueName", "Venue name")}
+          {textField("venueAddress", "Venue address")}
+          {textField("pay", "Total pay for the gig (USD)", { inputMode: "decimal" })}
+        </div>
+      </Fieldset>
+
+      <Fieldset legend="Roles needed">
+        <p className="text-sm text-gray-700">
+          Pick every role this gig needs. Then invite members from the gig's page.
+        </p>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          {ROLES.map((role) => (
+            <label key={role} className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={values.roles.includes(role)}
+                onChange={(event) => toggleRole(role, event.target.checked)}
+                className="h-4 w-4 focus-visible:outline-2 focus-visible:outline-brand-600"
+              />
+              {ROLE_LABELS[role]}
             </label>
-            <select
-              id={fieldId("gigType")}
-              value={values.gigType}
-              onChange={(event) => update("gigType", event.target.value)}
-              className="mt-1 w-full rounded border border-gray-400 px-3 py-2 focus-visible:outline-2 focus-visible:outline-brand-600"
-            >
-              <option value="">Not set</option>
-              {(Object.keys(GIG_TYPE_LABELS) as GigType[]).map((type) => (
-                <option key={type} value={type}>
-                  {GIG_TYPE_LABELS[type]}
-                </option>
-              ))}
-            </select>
-          </div>
-          {input("pay", "Pay (USD, whole gig)", { inputMode: "decimal" })}
+          ))}
         </div>
       </Fieldset>
 
-      <Fieldset legend="Venue contact">
-        <div className="grid gap-4 sm:grid-cols-3">
-          {input("venueContactName", "Venue contact name")}
-          {input("venueContactPhone", "Venue contact phone", { type: "tel" })}
-          {input("venueContactEmail", "Venue contact email", { type: "email" })}
-        </div>
-      </Fieldset>
-
-      <Fieldset legend="Booking contact (if different from the venue)">
-        <div className="grid gap-4 sm:grid-cols-3">
-          {input("bookingContactName", "Booking contact name")}
-          {input("bookingContactPhone", "Booking contact phone", { type: "tel" })}
-          {input("bookingContactEmail", "Booking contact email", { type: "email" })}
-        </div>
+      <Fieldset legend="Contacts">
+        {values.contacts.length === 0 && <p className="text-sm text-gray-700">No contacts yet.</p>}
+        <ul className="space-y-4">
+          {values.contacts.map((contact, index) => {
+            const n = index + 1;
+            const id = (field: string) => fieldId(`contacts.${index}.${field}`);
+            return (
+              <li key={contact.key} className="rounded border border-gray-200 p-3">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor={id("label")} className="block font-medium">
+                      Contact {n} type
+                    </label>
+                    <select
+                      id={id("label")}
+                      value={contact.label}
+                      onChange={(event) => updateContact(index, "label", event.target.value)}
+                      className={`${inputClass} border-gray-400`}
+                    >
+                      {(Object.keys(CONTACT_LABELS) as ContactLabel[]).map((label) => (
+                        <option key={label} value={label}>
+                          {CONTACT_LABELS[label]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {(["name", "phone", "email"] as const).map((field) => (
+                    <TextField
+                      key={field}
+                      id={id(field)}
+                      label={`Contact ${n} ${field}`}
+                      type={field === "email" ? "email" : field === "phone" ? "tel" : "text"}
+                      value={contact[field]}
+                      error={errors[`contacts.${index}.${field}`]}
+                      onChange={(value) => updateContact(index, field, value)}
+                    />
+                  ))}
+                  <div className="sm:col-span-2">
+                    <label htmlFor={id("notes")} className="block font-medium">
+                      Contact {n} notes
+                    </label>
+                    <textarea
+                      id={id("notes")}
+                      value={contact.notes}
+                      rows={2}
+                      onChange={(event) => updateContact(index, "notes", event.target.value)}
+                      className={`${inputClass} border-gray-400`}
+                    />
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeContact(index)}
+                  className={`${secondaryButton} mt-2`}
+                >
+                  Remove contact {n}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+        <button type="button" onClick={addContact} className={`${secondaryButton} mt-3`}>
+          Add contact
+        </button>
       </Fieldset>
 
       {serverError && <ErrorMessage message={serverError} />}
@@ -276,7 +384,7 @@ interface TextFieldProps {
   error?: string;
 }
 
-function TextField({
+export function TextField({
   id,
   label,
   value,
@@ -302,10 +410,7 @@ function TextField({
         onChange={(event) => onChange(event.target.value)}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy || undefined}
-        className={[
-          "mt-1 w-full rounded border px-3 py-2 focus-visible:outline-2 focus-visible:outline-brand-600",
-          error ? "border-red-700" : "border-gray-400",
-        ].join(" ")}
+        className={`${inputClass} ${error ? "border-red-700" : "border-gray-400"}`}
       />
       {hint && (
         <p id={hintId} className="mt-1 text-sm text-gray-600">

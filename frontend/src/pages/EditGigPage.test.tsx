@@ -41,9 +41,13 @@ describe("edit gig page", () => {
     expect(screen.getByLabelText("Date")).toHaveValue("2026-10-18");
     expect(screen.getByLabelText("First set time")).toHaveValue("20:00");
     expect(screen.getByLabelText("Soundcheck (minutes before first set)")).toHaveValue("75");
-    expect(screen.getByLabelText("Pay (USD, whole gig)")).toHaveValue("400.00");
-    expect(screen.getByLabelText("Gig type")).toHaveValue("duo");
-    expect(screen.getByLabelText("Venue contact name")).toHaveValue("Pat Lee");
+    expect(screen.getByLabelText("Total pay for the gig (USD)")).toHaveValue("400.00");
+    expect(screen.getByLabelText("Length (minutes from first set to the end)")).toHaveValue("180");
+    expect(screen.getByRole("checkbox", { name: "Rhythm guitar / vocals" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Lead guitar" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Bass" })).not.toBeChecked();
+    expect(screen.getByLabelText("Contact 1 name")).toHaveValue("Pat Lee");
+    expect(screen.getByLabelText("Contact 1 notes")).toHaveValue("Load in through the alley door.");
   });
 
   it("saves changes and returns to the gig", async () => {
@@ -56,7 +60,7 @@ describe("edit gig page", () => {
     );
     const { user, router } = renderApp("/gigs/10/edit", { as: asManager });
 
-    const pay = await screen.findByLabelText("Pay (USD, whole gig)");
+    const pay = await screen.findByLabelText("Total pay for the gig (USD)");
     await user.clear(pay);
     await user.type(pay, "450");
     await user.click(screen.getByRole("button", { name: "Save changes" }));
@@ -65,6 +69,16 @@ describe("edit gig page", () => {
     expect(router.state.location.pathname).toBe("/gigs/10");
     expect(sent?.pay_cents).toBe(45000);
     expect(sent?.first_set_at).toBe("2026-10-19T00:00:00.000Z");
+    expect(sent?.roles).toEqual(["rhythm_guitar_vocals", "lead_guitar"]);
+    expect(sent?.contacts).toEqual([
+      {
+        label: "venue",
+        name: "Pat Lee",
+        phone: "555-0142",
+        email: null,
+        notes: "Load in through the alley door.",
+      },
+    ]);
   });
 
   it("shows the reason when a booked gig would lose something it needs", async () => {
@@ -78,7 +92,7 @@ describe("edit gig page", () => {
     );
     const { user } = renderApp("/gigs/10/edit", { as: asManager });
 
-    await user.clear(await screen.findByLabelText("Pay (USD, whole gig)"));
+    await user.clear(await screen.findByLabelText("Total pay for the gig (USD)"));
     await user.click(screen.getByRole("button", { name: "Save changes" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(

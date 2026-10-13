@@ -37,6 +37,8 @@ Every choice that had a real alternative. Newest entries at the bottom.
 
 ## 2026-10-12 — One primary role per member
 
+> **Updated 2026-10-13:** a member's primary role now only orders the invite list. Anyone can be invited to any slot as a backup.
+
 **Decision:** Each member has exactly one primary role (for example, lead guitar or bass). Lineup slots are filled from members whose primary role matches.
 
 **Alternatives considered:**
@@ -45,6 +47,8 @@ Every choice that had a real alternative. Newest entries at the bottom.
 ---
 
 ## 2026-10-12 — Overlapping gigs are flagged, not refused
+
+> **Replaced 2026-10-13:** the product owner now says a member can't confirm two overlapping gigs. See "No member can accept two overlapping gigs."
 
 **Decision:** When a gig's times overlap another gig's, the gig still saves and a conflict flag is shown. The conflict is computed from gig times, not stored.
 
@@ -137,6 +141,8 @@ There is one manager per band.
 ---
 
 ## 2026-10-12 — Venue and contact details
+
+> **Replaced 2026-10-13:** each gig now has a list of contacts. See "Contacts are a list on each gig."
 
 **Decision:** A gig has a venue name and a venue address. A gig can have a venue contact and a booking contact, each with a name, phone, and email. All of these are optional on a draft.
 
@@ -233,6 +239,8 @@ There is one manager per band.
 
 ## 2026-10-13 — Lineup is edited by replacing it as a whole
 
+> **Replaced 2026-10-13:** fixed gig types and direct assignment are gone. See "Each gig lists its own roles" and "Members join a gig by accepting an invitation."
+
 **Decision:** `PATCH /api/v1/gigs/{id}` accepts a `lineup` list of `{slot, member_id}`, and when present, it replaces every assignment. Each gig type has fixed slots (Duo: rhythm guitar/vocals and lead guitar; Full Band: those plus bass, drums and specialty). A member can only fill the slot matching their primary role, can fill only one slot per gig, and each slot holds one member. These are `409`s with the codes `slot_not_in_lineup`, `member_role_mismatch`, `member_in_two_slots`, `duplicate_slot` and `gig_type_required`.
 
 **Alternatives considered:**
@@ -322,10 +330,6 @@ There is one manager per band.
 
 ---
 
-## Open questions noticed while building (product owner)
-
-- **Past gigs.** The stories say "upcoming gigs," but nobody has said what happens to a gig after its date. The list currently shows every gig in date order, past ones included.
-- **Load-in after soundcheck.** Nothing stops a manager from setting load-in later than soundcheck. Should that be refused?
 
 ---
 
@@ -378,3 +382,115 @@ This replaces the earlier entry that deferred the type pipeline.
 
 **Alternatives considered:**
 - Previous/next page controls now. Deferred until a band actually has more than 100 gigs.
+
+---
+
+## 2026-10-13 — Product owner answers (round 3)
+
+Recorded as given, for reference:
+- **Pay:** a gig has a set total, visible to the band leader. The band leader decides each member's pay.
+- **Lineup:** solo, duo, trio, quartet or full band. The leader picks the instrumentation for each gig.
+- **Overlap:** a member can't confirm two gigs at the same time. A morning gig and an evening gig are fine.
+- **Invitations:** the manager creates a draft with the instrumentation and asks members. A member marked busy can still be invited and decide for themselves. If someone can't make it, the manager asks a backup. Keep it personal rather than fully automated.
+- **Band leader:** a gig can't go ahead without the band leader.
+- **Length:** gigs usually last two to three hours. Members stay the whole show. They may ask to arrive late, but not to leave early.
+- **Contacts:** varies by gig. Store any number of contacts, with names, phones, emails and other details.
+
+---
+
+## 2026-10-13 — Team readings of those answers (confirm with the product owner)
+
+- The **band manager and band leader are different people.** The manager organizes and doesn't play. The leader plays and must be on every gig.
+- **"Confirm" means a member accepts an invitation.** Only then are they on the gig.
+- **A gig can't be booked until every invited member has accepted**, including the band leader.
+- The band leader is **invited like anyone else**. There's no automatic slot, but booking is refused until the leader has accepted one.
+
+---
+
+## 2026-10-13 — Each gig lists its own roles
+
+**Decision:** The manager picks which roles a gig needs (rhythm guitar/vocals, lead guitar, bass, drums, specialty). Each becomes a slot. The size label (solo, duo, trio, quartet; five or more is a full band) is computed from the number of slots. A role can appear only once per gig for now.
+
+**Alternatives considered:**
+- Keeping fixed gig types with fixed slots. Replaced: the product owner wants flexible instrumentation.
+- Storing the size label. Not taken: it's derived from the slots, so it is computed.
+
+**For the product owner:** can a gig ever need two of the same role, or roles beyond these five (keys, fiddle)?
+
+---
+
+## 2026-10-13 — Members join a gig by accepting an invitation
+
+**Decision:** Each slot has a status: `open`, `invited`, `accepted` or `declined`.
+- The manager invites a member: `POST /gigs/{id}/slots/{slot_id}/invite`, with that member's pay.
+- The member answers: `POST …/accept` or `POST …/decline`.
+- After a decline, or while an invitation is still pending, the manager can invite someone else to the same slot. An accepted slot can't be re-invited (`409 slot_already_filled`).
+- Any member can be invited to any slot as a backup. The invite list shows members who usually play that role first.
+- The manager can't be invited, because they don't play (`409 manager_cannot_play`).
+- Invitations only happen while the gig is potential.
+
+**Alternatives considered:**
+- Automatically asking every member who plays the role. Not taken: the product owner wants the manager to stay personally in the loop.
+- Refusing to invite members marked busy. Not taken: the product owner wants them asked anyway, so they can decide.
+
+---
+
+## 2026-10-13 — Pay: the gig total and each member's share
+
+**Decision:** The gig keeps its total (`pay_cents`), which only the manager sees. Each slot has the pay for that member, set when inviting or changed later with `PATCH /gigs/{id}/slots/{slot_id}` (there's no screen for changing it yet). A member sees only their own pay.
+
+**Alternatives considered:**
+- Showing members the total or everyone's pay. Not taken: the product owner said the total is for the band leader.
+
+**For the product owner:** should the app warn when members' pay adds up to more than the total?
+
+---
+
+## 2026-10-13 — No member can accept two overlapping gigs
+
+**Decision:** A gig has a length (`performance_minutes`, default 180) after the first set, so it has a computed end time. A member is busy from **load-in to the end**.
+- Accepting an invitation is refused (`409 overlapping_gig`) if that window overlaps another gig the member already accepted.
+- Moving a gig's time so that it overlaps another gig an accepted member is on is also refused.
+- Cancelled and undated gigs never count.
+
+**Alternatives considered:**
+- Flagging but allowing overlaps (the earlier decision). Replaced by the product owner's answer.
+- Counting only from the first set. Not taken: members have to be there for load-in.
+
+---
+
+## 2026-10-13 — Contacts are a list on each gig
+
+**Decision:** A gig has any number of contacts, each with a type (venue, booking, other), name, phone, email and notes. Booking needs at least one contact with a name and a phone or email.
+
+**Alternatives considered:**
+- Contacts shared by venue, so they're reused next time. Deferred to the Booking feature, which will track venues.
+
+---
+
+## 2026-10-13 — What members can see (updated)
+
+**Decision:** Members see:
+- booked gigs they're on
+- potential gigs they've been invited to or have accepted
+- other booked gigs as "Not assigned" rows
+
+A potential gig a member isn't invited to (or has declined) returns `404`, the same as a gig that doesn't exist.
+
+---
+
+## 2026-10-13 — Existing data carried through migration 0002
+
+**Decision:** Migration 0002 turns old assignments into pending invitations and old contact fields into contacts, rather than dropping them.
+
+**Alternatives considered:**
+- Editing migration 0001 in place. Not taken: anyone who already ran 0001 locally would end up with a database that doesn't match.
+
+---
+
+## Open questions (product owner)
+
+- **Past gigs.** The stories say "upcoming gigs," but nobody has said what happens to a gig after its date. The list currently shows every gig in date order, past ones included.
+- **Load-in after soundcheck.** Nothing stops a manager from setting load-in later than soundcheck. Should that be refused?
+- **Late arrivals:** members can ask to arrive late. The design is decided (pending until the manager answers), but it isn't built yet.
+- **Backing out:** can a member who accepted later withdraw? Can the manager remove an accepted member?

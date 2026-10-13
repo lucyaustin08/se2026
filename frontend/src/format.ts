@@ -1,4 +1,4 @@
-import type { GigStatus, GigType, Role } from "./api/types";
+import type { ContactLabel, GigStatus, LineupSize, Role, SlotStatus } from "./api/types";
 
 export const ROLE_LABELS: Record<Role, string> = {
   rhythm_guitar_vocals: "Rhythm guitar / vocals",
@@ -8,10 +8,34 @@ export const ROLE_LABELS: Record<Role, string> = {
   specialty: "Specialty instrument",
 };
 
-export const GIG_TYPE_LABELS: Record<GigType, string> = {
-  full_band: "Full band",
-  trio: "Trio",
+/** The order roles are listed in everywhere. */
+export const ROLES: readonly Role[] = [
+  "rhythm_guitar_vocals",
+  "lead_guitar",
+  "bass",
+  "drums",
+  "specialty",
+];
+
+export const LINEUP_SIZE_LABELS: Record<LineupSize, string> = {
+  solo: "Solo",
   duo: "Duo",
+  trio: "Trio",
+  quartet: "Quartet",
+  full_band: "Full band",
+};
+
+export const SLOT_STATUS_LABELS: Record<SlotStatus, string> = {
+  open: "Open",
+  invited: "Invited, waiting for an answer",
+  accepted: "Accepted",
+  declined: "Declined",
+};
+
+export const CONTACT_LABELS: Record<ContactLabel, string> = {
+  venue: "Venue",
+  booking: "Booking",
+  other: "Other",
 };
 
 export const GIG_STATUS_LABELS: Record<GigStatus, string> = {
