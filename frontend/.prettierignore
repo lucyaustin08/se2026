@@ -2,5 +2,5 @@ dist
 coverage
 node_modules
 pnpm-lock.yaml
-src/api/openapi.json
+openapi.json
 src/api/schema.d.ts

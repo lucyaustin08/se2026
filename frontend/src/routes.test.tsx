@@ -1,22 +1,23 @@
-import { render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { createMemoryRouter, RouterProvider } from "react-router";
+import { screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { routes } from "./routes";
-
-function renderAt(path: string) {
-  const router = createMemoryRouter(routes, { initialEntries: [path] });
-  render(<RouterProvider router={router} />);
-}
+import { asManager } from "./test/fixtures";
+import { renderApp } from "./test/render";
 
 function mainNav() {
   return screen.getByRole("navigation", { name: "Main" });
 }
 
 describe("app navigation", () => {
+  it("sends someone who hasn't chosen who they are to the login page", async () => {
+    renderApp("/gigs");
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Roadhouse" })).toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "Main" })).not.toBeInTheDocument();
+  });
+
   it("lists every section in the main navigation", () => {
-    renderAt("/");
+    renderApp("/", { as: asManager });
 
     const links = within(mainNav()).getAllByRole("link");
     expect(links.map((link) => link.textContent)).toEqual([
@@ -30,7 +31,7 @@ describe("app navigation", () => {
   });
 
   it("opens on the dashboard and marks it as the current page", () => {
-    renderAt("/");
+    renderApp("/", { as: asManager });
 
     expect(screen.getByRole("heading", { level: 1, name: "Dashboard" })).toBeInTheDocument();
     expect(within(mainNav()).getByRole("link", { name: "Dashboard" })).toHaveAttribute(
@@ -40,8 +41,7 @@ describe("app navigation", () => {
   });
 
   it("moves to a section when its link is clicked", async () => {
-    const user = userEvent.setup();
-    renderAt("/");
+    const { user } = renderApp("/", { as: asManager });
 
     await user.click(within(mainNav()).getByRole("link", { name: "Gigs" }));
 
@@ -56,8 +56,7 @@ describe("app navigation", () => {
   });
 
   it("can be operated from the keyboard", async () => {
-    const user = userEvent.setup();
-    renderAt("/");
+    const { user } = renderApp("/", { as: asManager });
 
     await user.tab();
     await user.tab();
@@ -67,9 +66,20 @@ describe("app navigation", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Gigs" })).toBeInTheDocument();
   });
 
+  it("shows who is using the app and lets them switch", async () => {
+    const { user } = renderApp("/", { as: asManager });
+
+    expect(screen.getByText(/Using Roadhouse as/)).toHaveTextContent(
+      "Using Roadhouse as Jordan Avery (band manager)",
+    );
+
+    await user.click(screen.getByRole("button", { name: "Switch user" }));
+
+    expect(await screen.findByRole("button", { name: /Continue as manager/ })).toBeInTheDocument();
+  });
+
   it("shows a not-found page with a way back for unknown addresses", async () => {
-    const user = userEvent.setup();
-    renderAt("/no-such-page");
+    const { user } = renderApp("/no-such-page", { as: asManager });
 
     expect(screen.getByRole("heading", { level: 1, name: "Page not found" })).toBeInTheDocument();
 

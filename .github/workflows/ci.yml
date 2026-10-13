@@ -68,6 +68,19 @@ jobs:
       - name: Install dependencies from pnpm-lock.yaml
         run: $ANNOTATE "pnpm install" pnpm install --frozen-lockfile
 
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Export the backend's OpenAPI schema
+        working-directory: backend
+        run: >-
+          $ANNOTATE "OpenAPI export" sh -c "uv sync --locked --no-dev
+          && uv run --no-sync python -m scripts.export_openapi ../frontend/openapi.json"
+
+      - name: Generate API types
+        run: $ANNOTATE "openapi-typescript" pnpm gen:api
+
       - name: ESLint
         run: $ANNOTATE "ESLint" pnpm lint
 

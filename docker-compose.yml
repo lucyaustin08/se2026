@@ -37,6 +37,7 @@ services:
       dockerfile: ../infra/docker/frontend.Dockerfile
       additional_contexts:
         infra: ./infra/docker
+        backend: ./backend
     ports:
       - "8080:8080"
     networks:

@@ -326,3 +326,55 @@ There is one manager per band.
 
 - **Past gigs.** The stories say "upcoming gigs," but nobody has said what happens to a gig after its date. The list currently shows every gig in date order, past ones included.
 - **Load-in after soundcheck.** Nothing stops a manager from setting load-in later than soundcheck. Should that be refused?
+
+---
+
+## 2026-10-13 — Generated API types are not committed
+
+**Decision:** `frontend/src/api/schema.d.ts` is generated from the backend's OpenAPI schema and git-ignored. CI exports the schema from the backend and generates the types before type-checking. The frontend Docker build does the same in an extra build stage. Developers run `pnpm gen:api:live` against a running backend (see `frontend/README.md`).
+
+**Alternatives considered:**
+- Committing `schema.d.ts` and failing CI when it's stale. Not taken: every backend change would need a second, generated commit, and forgetting it breaks the build for everyone.
+
+This replaces the earlier entry that deferred the type pipeline.
+
+---
+
+## 2026-10-13 — How the frontend talks to the API
+
+**Decision:**
+- One `openapi-fetch` client (`src/api/client.ts`) with a middleware that adds `X-Acting-Member-Id` to every request.
+- `unwrap()` turns error responses into an `ApiError` carrying the status and `code`, so TanStack Query treats them as failures.
+- Queries don't retry `4xx` answers, which won't change on a retry.
+- The client calls `globalThis.fetch` on every request rather than capturing it at startup, so MSW can intercept it in tests.
+
+**Alternatives considered:**
+- Checking `error` at every call site. Not taken: it's repetitive, and it's easy to forget a check.
+
+---
+
+## 2026-10-13 — Who's acting is kept in sessionStorage
+
+**Decision:** The picker's choice is kept in memory and mirrored to `sessionStorage`, so it survives a reload but not a new tab. It holds only id, name and whether the person is the manager. The server re-checks every permission.
+
+**Alternatives considered:**
+- `localStorage`. Not taken: two people sharing a laptop would stay "signed in" as each other across tabs.
+- A global state library. Not allowed by the stack contract, and a small React context is enough.
+
+---
+
+## 2026-10-13 — Gig times entered in the browser's local time
+
+**Decision:** The form's date and time inputs are in the browser's time zone. The frontend converts them to UTC before sending, and converts UTC back to local time for display. This is correct as long as everyone in the band is in the same time zone as the gigs.
+
+**Alternatives considered:**
+- Storing a time zone per gig or per band. Deferred: no one has asked for out-of-town gigs in another time zone.
+
+---
+
+## 2026-10-13 — Gig list loads up to 100 gigs per group
+
+**Decision:** The gig page asks for up to 100 dated gigs and 100 undated drafts (the maximum page size) and says so when there are more. There are no page controls yet.
+
+**Alternatives considered:**
+- Previous/next page controls now. Deferred until a band actually has more than 100 gigs.

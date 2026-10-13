@@ -1,16 +1,28 @@
-# Frontend image. Build context: frontend/; nginx.conf comes from the "infra" context
-# (see docker-compose.yml).
+# Frontend image. Build context: frontend/. Extra build contexts (see docker-compose.yml):
+# "infra" for nginx.conf, and "backend" to export the OpenAPI schema the API types come from.
 
-# ---- Build stage: install locked dependencies and build static files ----
+# ---- Stage 1: export the backend's OpenAPI schema ----
+FROM python:3.14-slim AS openapi
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+ENV UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=0
+WORKDIR /backend
+COPY --from=backend pyproject.toml uv.lock ./
+RUN uv sync --locked --no-dev --no-install-project
+COPY --from=backend . .
+RUN .venv/bin/python -m scripts.export_openapi /openapi.json
+
+# ---- Stage 2: install locked dependencies, generate API types, build static files ----
 FROM node:24-slim AS build
 WORKDIR /app
 RUN corepack enable
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY . .
-RUN pnpm build
+COPY --from=openapi /openapi.json ./openapi.json
+RUN pnpm gen:api && pnpm build
 
-# ---- Runtime stage: nginx as a non-root user, serving on port 8080 ----
+# ---- Stage 3: nginx as a non-root user, serving on port 8080 ----
 FROM nginxinc/nginx-unprivileged:stable-alpine AS runtime
 COPY --from=infra nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
