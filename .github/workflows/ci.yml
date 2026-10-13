@@ -108,6 +108,17 @@ jobs:
       - name: API answers through the frontend's nginx proxy
         run: $ANNOTATE "API via nginx" curl --fail --silent --show-error http://localhost:8080/api/v1/health
 
+      - name: Migrations ran and the sample band was loaded
+        run: >-
+          $ANNOTATE "Seeded members" sh -c
+          "curl --fail --silent --show-error http://localhost:8080/api/v1/members | grep -q 'Jordan Avery'"
+
+      - name: A manager can list gigs through the API
+        run: >-
+          $ANNOTATE "Gigs via nginx" sh -c
+          "curl --fail --silent --show-error -H 'X-Acting-Member-Id: 1' http://localhost:8080/api/v1/gigs
+          | grep -q 'The Blue Door'"
+
       - name: A client-side route serves the app
         run: >-
           $ANNOTATE "Frontend route" sh -c
