@@ -1,0 +1,7 @@
+# Keep Unix line endings in every text file, on every OS. Scripts and config files run
+# inside Linux containers, where Windows line endings (CRLF) break them.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.ico binary
