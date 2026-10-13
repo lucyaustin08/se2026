@@ -216,3 +216,113 @@ There is one manager per band.
 
 **Alternatives considered:**
 - Setting them up in the app shell. Not taken: with no API calls yet, there would be nothing to test them against.
+
+---
+
+## 2026-10-13 — Acting member sent in the `X-Acting-Member-Id` header
+
+**Decision:** The user picker stores the chosen member's id, and the frontend sends it on every request in an `X-Acting-Member-Id` header. One dependency, `get_acting_member`, turns it into a `Member`. A missing header returns `403 acting_member_required`, and an unknown id returns `403 unknown_acting_member`.
+
+**Alternatives considered:**
+- `401 Unauthorized` for a missing header. More correct in HTTP terms, but `401` is not in the course status-code list. The instructor approved only `403`. Revisit when real login replaces the picker.
+- A query parameter. Not taken: it would appear in every URL and in server logs.
+
+`GET /api/v1/members` does not require the header, because the picker needs the list before anyone has chosen.
+
+---
+
+## 2026-10-13 — Lineup is edited by replacing it as a whole
+
+**Decision:** `PATCH /api/v1/gigs/{id}` accepts a `lineup` list of `{slot, member_id}`, and when present, it replaces every assignment. Each gig type has fixed slots (Duo: rhythm guitar/vocals and lead guitar; Full Band: those plus bass, drums and specialty). A member can only fill the slot matching their primary role, can fill only one slot per gig, and each slot holds one member. These are `409`s with the codes `slot_not_in_lineup`, `member_role_mismatch`, `member_in_two_slots`, `duplicate_slot` and `gig_type_required`.
+
+**Alternatives considered:**
+- A separate `/gigs/{id}/assignments` sub-resource with one call per slot. Not taken: the lineup form saves all slots at once, and partial failures would leave half a lineup.
+- Silently removing assignments when the gig type changes. Not taken: it would lose data without warning. Changing the type while members hold slots the new type lacks is refused (`409 lineup_not_in_gig_type`) unless the new lineup is sent in the same request.
+
+**Trio:** only its two fixed slots can be filled until the product owner says how the third slot works.
+
+---
+
+## 2026-10-13 — A lineup entry naming a member who doesn't exist is a 409
+
+**Decision:** `409 unknown_member`.
+
+**Alternatives considered:**
+- `404`. Not taken: in our conventions, `404` means the resource in the URL doesn't exist, and here the gig does.
+- `422`. Not taken: the request is well-formed, and a business rule refuses it.
+
+---
+
+## 2026-10-13 — What members can see
+
+**Decision:**
+- Members see only booked gigs.
+- A potential gig returns `404 gig_not_found` to a member, the same answer as a gig that doesn't exist, so members can't tell potential gigs exist.
+- Booked gigs a member isn't on appear in the list as `restricted` rows with only id, status and date.
+- A member's search only matches gigs they're assigned to, because matching on venue or contact names would otherwise reveal a restricted gig's details.
+- Members never see pay, while the product owner's answer on pay visibility is pending.
+
+**Alternatives considered:**
+- Returning `403` for a member opening a potential gig. Not taken: it would confirm the gig exists.
+
+---
+
+## 2026-10-13 — `missing_for_booking` is computed and returned with each gig
+
+**Decision:** Gig details include `missing_for_booking`, a list of plain-language names for whatever the gig still needs before it can be booked. It's computed by the same function that enforces the booking rule, so the screen and the rule can't disagree. Members get an empty list.
+
+**Alternatives considered:**
+- Repeating the rule in the frontend. Not taken: two copies of a business rule drift apart.
+
+---
+
+## 2026-10-13 — A booked gig can be edited only while it stays complete
+
+**Decision:** Editing a booked gig is allowed, but an edit that would remove anything booking requires is refused with `409 gig_incomplete`, and nothing is saved.
+
+**Alternatives considered:**
+- Locking booked gigs. Not taken: times and contacts change after booking.
+- Allowing anything. Not taken: members would see a booked gig with no time or address.
+
+---
+
+## 2026-10-13 — Clearing a time offset resets it to the default
+
+**Decision:** In `PATCH`, sending `null` for `load_in_offset_minutes` or `soundcheck_offset_minutes` resets it to 120 or 60 minutes. Omitted fields are unchanged, and `null` clears every other field.
+
+**Alternatives considered:**
+- Rejecting `null` for offsets. Not taken: "back to the default" is the natural meaning of clearing a field the form pre-fills.
+
+---
+
+## 2026-10-13 — Sample band seeded by an environment flag
+
+**Decision:** `python -m app.seed` adds a made-up band (a manager and one member per role) and three gigs, but only when `SEED_SAMPLE_DATA` is true and the database has no members. Docker Compose turns it on, and the backend container runs it after migrations.
+
+**Alternatives considered:**
+- A data migration. Not taken: sample data would end up in every environment, including future production.
+
+---
+
+## 2026-10-13 — `Location` headers are relative paths
+
+**Decision:** `201` responses set `Location: /api/v1/gigs/{id}`.
+
+**Alternatives considered:**
+- An absolute URL. Not taken: behind nginx the backend sees the wrong host and port, so the absolute URL would be wrong.
+
+---
+
+## 2026-10-13 — Unique-constraint names include every column
+
+**Decision:** The naming convention for unique constraints is `uq_<table>_<all columns>`.
+
+**Alternatives considered:**
+- The earlier `uq_<table>_<first column>`. Changed: `gig_assignments` has two unique constraints starting with `gig_id`, which would have had the same name.
+
+---
+
+## Open questions noticed while building (product owner)
+
+- **Past gigs.** The stories say "upcoming gigs," but nobody has said what happens to a gig after its date. The list currently shows every gig in date order, past ones included.
+- **Load-in after soundcheck.** Nothing stops a manager from setting load-in later than soundcheck. Should that be refused?

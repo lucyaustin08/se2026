@@ -35,6 +35,13 @@ jobs:
       - name: mypy (strict)
         run: $ANNOTATE "mypy" uv run mypy
 
+      - name: Migrations match the models
+        env:
+          DATABASE_URL: sqlite:///./migration-check.db
+        run: >-
+          $ANNOTATE "Alembic" sh -c "uv run alembic upgrade head && uv run alembic check
+          && uv run alembic downgrade base && uv run alembic upgrade head"
+
       - name: Tests with coverage
         run: >-
           $ANNOTATE "pytest" uv run pytest --cov=app --cov-report=term-missing:skip-covered
