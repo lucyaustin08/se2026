@@ -179,3 +179,40 @@ There is one manager per band.
 
 **Alternatives considered:**
 - A health check that always returns `ok`. Not taken: Docker Compose healthchecks should fail when the app can't reach its database.
+
+---
+
+## 2026-10-12 — Navigation sections and placeholder pages
+
+**Decision:** The app has six top-level sections in this order: Dashboard, Gigs, Scheduling, Songs & Setlists, Members, Booking. Sections without a feature yet show a placeholder page. The list lives in one place (`src/navigation.ts`), which both the navigation and the routes read.
+
+**Alternatives considered:**
+- Adding each section only when its feature is built. Not taken: the product owner suggested these tabs, and a fixed shell lets the team see the whole app's shape from the start.
+
+---
+
+## 2026-10-12 — Frontend served by unprivileged nginx, API proxied through it
+
+**Decision:** The frontend image serves the built app with `nginxinc/nginx-unprivileged` on port 8080, and nginx forwards `/api/` to the backend container. In development, Vite's dev server does the same forwarding. The frontend therefore always calls relative `/api/...` URLs and needs no API base URL setting.
+
+**Alternatives considered:**
+- The stock `nginx` image. Not taken: it starts as root, and the stack contract requires non-root containers.
+- Having the browser call the backend on its own port. Not taken: it would need CORS configuration and a per-environment API URL.
+
+---
+
+## 2026-10-12 — Frontend dependencies installed by a bootstrap script
+
+**Decision:** `frontend/scripts/bootstrap-deps.sh` installs the initial dependencies with pnpm, pinning only the majors the constitution fixes (React 19, Vite 8, Vitest 4, TypeScript 5, ESLint 9, Tailwind 4) and taking the current release of everything else.
+
+**Alternatives considered:**
+- Hand-writing version ranges in `package.json`. Not taken: several packages had major releases recently enough that hand-picked ranges risked pinning an outdated major.
+
+---
+
+## 2026-10-12 — Generated API types deferred to the first feature that calls the API
+
+**Decision:** The `openapi-typescript` and `openapi-fetch` pipeline, plus TanStack Query and MSW, are set up together with the gigs feature, which is the first frontend code that calls the API.
+
+**Alternatives considered:**
+- Setting them up in the app shell. Not taken: with no API calls yet, there would be nothing to test them against.

@@ -9,4 +9,21 @@ Roadhouse is a web app that puts a band's gigs, songs, setlists and people in on
 - `infra/`: Dockerfiles and nginx config
 - `DECISIONS.md`: every design choice that had a real alternative, and why we chose what we did
 
-Setup instructions will be added as each part of the project lands.
+## Running the app
+
+You need Docker Desktop running. From the repository root:
+
+```bash
+docker compose up --build
+```
+
+Then open:
+
+- http://localhost:8080 for the app
+- http://localhost:8000/docs for the interactive API docs
+
+Stop it with `Ctrl+C`, or `docker compose down` from another terminal. Data lives in the `roadhouse-data` Docker volume, so it survives restarts. `docker compose down --volumes` wipes it.
+
+## Developing without Docker
+
+See `backend/README.md` and `frontend/README.md`.
