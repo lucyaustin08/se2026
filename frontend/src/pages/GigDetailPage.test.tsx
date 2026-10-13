@@ -151,7 +151,7 @@ describe("gig detail page", () => {
     renderApp("/gigs/11", { as: asManager });
 
     const lineup = await screen.findByRole("region", { name: "Lineup" });
-    const slots = within(lineup).getAllByRole("heading", { level: 3 });
+    const slots = await within(lineup).findAllByRole("heading", { level: 3 });
     expect(slots.map((heading) => heading.textContent)).toEqual([
       "Rhythm guitar / vocals",
       "Lead guitar",
