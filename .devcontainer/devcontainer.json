@@ -8,7 +8,10 @@
     "ghcr.io/devcontainers/features/node:1": { "version": "24" }
   },
   "containerEnv": {
-    "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0"
+    "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0",
+    // Always use uv's own full Python build. The base image's system Python is a cut-down
+    // package missing parts of the standard library (asyncio), which breaks SQLAlchemy.
+    "UV_PYTHON_PREFERENCE": "only-managed"
   },
   // Installs uv and pnpm, then every dependency from the committed lock files.
   "postCreateCommand": "bash .devcontainer/post-create.sh",

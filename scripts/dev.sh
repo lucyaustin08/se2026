@@ -9,6 +9,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 export PATH="$HOME/.local/bin:$PATH"
+# Use uv's full Python build, never a cut-down system Python (see .devcontainer).
+export UV_PYTHON_PREFERENCE="${UV_PYTHON_PREFERENCE:-only-managed}"
 export DATABASE_URL="${DATABASE_URL:-sqlite:///$ROOT/backend/roadhouse-dev.db}"
 export SEED_SAMPLE_DATA="${SEED_SAMPLE_DATA:-true}"
 
