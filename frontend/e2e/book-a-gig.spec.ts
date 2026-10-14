@@ -17,15 +17,16 @@ test.describe("Story: the manager adds a gig, invites the band, and books it", (
     // The manager adds a potential gig with everything booking needs.
     await continueAs(page, "manager");
     await page.getByRole("link", { name: "Add gig" }).click();
-    await page.getByLabel("Date").fill(day);
-    await page.getByLabel("First set time").fill("20:00");
-    await page.getByLabel("Venue name").fill(venue);
-    await page.getByLabel("Venue address").fill("1 Test Street, Spartanburg, SC");
-    await page.getByLabel("Total pay for the gig (USD)").fill("300");
+    await expect(page.getByRole("heading", { level: 1, name: "Add a gig" })).toBeVisible();
+    await page.getByLabel("Date", { exact: true }).fill(day);
+    await page.getByLabel("First set time", { exact: true }).fill("20:00");
+    await page.getByLabel("Venue name", { exact: true }).fill(venue);
+    await page.getByLabel("Venue address", { exact: true }).fill("1 Test Street, Spartanburg, SC");
+    await page.getByLabel("Total pay for the gig (USD)", { exact: true }).fill("300");
     await page.getByRole("checkbox", { name: "Rhythm guitar / vocals" }).check();
     await page.getByRole("button", { name: "Add contact" }).click();
-    await page.getByLabel("Contact 1 name").fill("Pat Lee");
-    await page.getByLabel("Contact 1 phone").fill("555-0142");
+    await page.getByLabel("Contact 1 name", { exact: true }).fill("Pat Lee");
+    await page.getByLabel("Contact 1 phone", { exact: true }).fill("555-0142");
     await page.getByRole("button", { name: "Save gig" }).click();
 
     await expect(page.getByRole("heading", { level: 1, name: venue })).toBeVisible();
