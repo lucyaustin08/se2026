@@ -49,3 +49,16 @@ MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W)/frontend:/app" -w /app node:24-
 ```
 
 On macOS or Linux, use `"$(pwd)"` and drop `MSYS_NO_PATHCONV=1`.
+
+## Acceptance tests (Playwright)
+
+`e2e/` holds one test per user story. Each drives a real browser through the real, running app, starting from the sample band. CI runs them against Docker Compose on every push, and saves Playwright's HTML report as the `acceptance-test-report` download on the run page.
+
+To run them in a codespace while `bash scripts/dev.sh` is running (in a second terminal):
+
+```bash
+cd frontend
+pnpm exec playwright install --with-deps chromium   # first time only
+E2E_BASE_URL=http://127.0.0.1:5173 pnpm exec playwright test
+pnpm exec playwright show-report
+```
