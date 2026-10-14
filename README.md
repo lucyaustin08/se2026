@@ -9,7 +9,26 @@ Roadhouse is a web app that puts a band's gigs, songs, setlists and people in on
 - `infra/`: Dockerfiles and nginx config
 - `DECISIONS.md`: every design choice that had a real alternative, and why we chose what we did
 
-## Running the app
+## Running the app in GitHub Codespaces (no installs needed)
+
+Everything runs in the browser. You don't need Docker, Python or Node on your computer.
+
+1. On the repository page on GitHub, click the green **Code** button.
+2. Open the **Codespaces** tab and click **Create codespace on main** (or on your branch).
+3. Wait for the setup to finish. The first time takes a few minutes, while it installs everything. You'll see "Ready" in the terminal.
+4. In the terminal at the bottom, run:
+
+   ```bash
+   bash scripts/dev.sh
+   ```
+
+5. When a pop-up says the app is running on port 5173, click **Open in Browser**. If you miss it, open the **Ports** tab and click the globe icon next to "Roadhouse app".
+
+Stop the app with `Ctrl+C`. To start over with fresh sample data, delete `backend/roadhouse-dev.db` and run the script again.
+
+Codespaces are free for students up to a monthly limit, through [GitHub Education](https://education.github.com). Stop your codespace when you're done (**Code → Codespaces → ⋯ → Stop codespace**) so it doesn't use up your hours.
+
+## Running the app with Docker
 
 You need Docker Desktop running. From the repository root:
 

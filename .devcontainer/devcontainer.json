@@ -1,0 +1,34 @@
+{
+  // GitHub Codespaces (or VS Code Dev Containers): a ready-to-code machine with the course
+  // stack installed, so nobody needs Docker, Python or Node on their own computer.
+  // Start the app inside it with:  bash scripts/dev.sh
+  "name": "Roadhouse",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "24" }
+  },
+  "containerEnv": {
+    "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0",
+    // Always use uv's own full Python build. The base image's system Python is a cut-down
+    // package missing parts of the standard library (asyncio), which breaks SQLAlchemy.
+    "UV_PYTHON_PREFERENCE": "only-managed"
+  },
+  // Installs uv and pnpm, then every dependency from the committed lock files.
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "forwardPorts": [5173, 8000],
+  "portsAttributes": {
+    "5173": { "label": "Roadhouse app", "onAutoForward": "openBrowser" },
+    "8000": { "label": "API (docs at /docs)", "onAutoForward": "silent" }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "charliermarsh.ruff",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss"
+      ]
+    }
+  }
+}

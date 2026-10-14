@@ -5,6 +5,7 @@ Notable changes to Roadhouse, newest first.
 ## Unreleased
 
 ### Added
+- GitHub Codespaces setup: run the whole app in the browser with `bash scripts/dev.sh`, no Docker needed.
 - User picker: continue as the manager or as a band member (sprint 1 stand-in for login).
 - Gigs: list, detail, add a potential gig, edit it, and book it.
 - Per-gig roles. The manager invites members to each role with their pay, and members accept or decline.

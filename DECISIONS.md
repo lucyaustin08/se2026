@@ -494,3 +494,19 @@ A potential gig a member isn't invited to (or has declined) returns `404`, the s
 - **Load-in after soundcheck.** Nothing stops a manager from setting load-in later than soundcheck. Should that be refused?
 - **Late arrivals:** members can ask to arrive late. The design is decided (pending until the manager answers), but it isn't built yet.
 - **Backing out:** can a member who accepted later withdraw? Can the manager remove an accepted member?
+
+---
+
+## 2026-10-14 — GitHub Codespaces for running the app without Docker
+
+**Decision:** The repo includes a dev container (`.devcontainer/`). Opening it in GitHub Codespaces gives each teammate a cloud machine with uv, Python 3.14, Node 24 and pnpm, and every dependency installed from the lock files. `bash scripts/dev.sh` runs migrations, loads the sample band, generates the API types, and starts the backend (port 8000) and the Vite dev server (port 5173).
+- CI builds the same dev container and checks that `scripts/dev.sh` serves both the app and the API, so the setup can't silently break.
+- Vite allows the `*.app.github.dev` hostname Codespaces uses.
+
+Docker Compose stays exactly as it was. It's part of the stack contract, and CI still builds and tests the production images with it. Codespaces only removes the need for Docker on teammates' own computers.
+
+**Alternatives considered:**
+- Running `docker compose` inside the codespace. Not taken: it's slower to start, and code changes would need an image rebuild instead of live reloading.
+- Asking everyone to install Docker Desktop. Not taken: several teammates work only in the browser with GitHub and Copilot.
+
+**Pending:** confirm with the instructor that a dev container is fine as an addition to the stack.
