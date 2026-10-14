@@ -34,3 +34,6 @@ test-results/
 # Generated from the backend's OpenAPI schema (see frontend/README.md)
 frontend/openapi.json
 frontend/src/api/schema.d.ts
+
+# Test reports written by CI and by local runs
+reports/

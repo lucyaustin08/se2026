@@ -45,7 +45,22 @@ jobs:
       - name: Tests with coverage
         run: >-
           $ANNOTATE "pytest" uv run pytest --cov=app --cov-report=term-missing:skip-covered
-          --cov-fail-under=80
+          --cov-report=html:reports/coverage-html --cov-report=xml:reports/coverage.xml
+          --junitxml=reports/junit.xml --cov-fail-under=80
+
+      - name: Test summary on the run page
+        if: always()
+        run: >-
+          python3 ../.github/scripts/test_summary.py "Backend tests" reports/junit.xml
+          --coverage-xml reports/coverage.xml >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save the backend coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage-report
+          path: backend/reports/coverage-html
+          if-no-files-found: ignore
 
   frontend:
     name: Frontend (lint, typecheck, test)
@@ -91,7 +106,23 @@ jobs:
         run: $ANNOTATE "Prettier" pnpm format:check
 
       - name: Tests with coverage
-        run: $ANNOTATE "Vitest" pnpm test:cov
+        run: >-
+          $ANNOTATE "Vitest" pnpm test:cov --reporter=default --reporter=junit
+          --outputFile.junit=reports/junit.xml
+
+      - name: Test summary on the run page
+        if: always()
+        run: >-
+          python3 ../.github/scripts/test_summary.py "Frontend tests" reports/junit.xml
+          --coverage-json coverage/coverage-summary.json >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save the frontend coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage-report
+          path: frontend/coverage
+          if-no-files-found: ignore
 
   docker:
     name: Docker Compose smoke test
