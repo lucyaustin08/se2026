@@ -1,8 +1,25 @@
-import { NavLink, Outlet } from "react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { Navigate, NavLink, Outlet, useNavigate } from "react-router";
 
 import { NAV_ITEMS } from "../navigation";
+import { useSession } from "../session";
 
 export function AppLayout() {
+  const { member, signOut } = useSession();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  if (!member) {
+    return <Navigate to="/login" replace />;
+  }
+
+  function switchUser() {
+    signOut();
+    // Cached answers belong to the previous user, so drop them.
+    queryClient.clear();
+    navigate("/login");
+  }
+
   return (
     <div className="min-h-screen bg-white font-sans text-ink-900">
       <header className="border-b border-gray-200">
@@ -32,6 +49,19 @@ export function AppLayout() {
               ))}
             </ul>
           </nav>
+          <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-gray-700">
+            <p>
+              Using Roadhouse as <strong>{member.name}</strong> (
+              {member.isManager ? "band manager" : "band member"})
+            </p>
+            <button
+              type="button"
+              onClick={switchUser}
+              className="rounded border border-gray-400 px-2 py-1 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-brand-600"
+            >
+              Switch user
+            </button>
+          </div>
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-4 py-6">

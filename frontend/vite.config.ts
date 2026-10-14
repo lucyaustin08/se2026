@@ -11,12 +11,14 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
+    // Fixed time zone, so tests that convert local times to UTC give the same answer everywhere.
+    env: { TZ: "America/New_York" },
     setupFiles: ["./test_setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
     coverage: {
       provider: "v8",
       include: ["src/**/*.{ts,tsx}"],
-      exclude: ["src/main.tsx", "src/**/*.test.{ts,tsx}", "src/vite-env.d.ts"],
+      exclude: ["src/main.tsx", "src/**/*.test.{ts,tsx}", "src/**/*.d.ts", "src/test/**"],
       reporter: ["text", "html"],
       thresholds: { lines: 80 },
     },

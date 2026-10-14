@@ -8,6 +8,8 @@ services:
       dockerfile: ../infra/docker/backend.Dockerfile
     environment:
       DATABASE_URL: sqlite:////data/roadhouse.db
+      # Adds a made-up sample band on first start, for the sprint 1 user picker.
+      SEED_SAMPLE_DATA: "true"
       # For PostgreSQL, use the db service below instead:
       # DATABASE_URL: postgresql+psycopg://roadhouse:${POSTGRES_PASSWORD}@db:5432/roadhouse
     volumes:
@@ -35,6 +37,7 @@ services:
       dockerfile: ../infra/docker/frontend.Dockerfile
       additional_contexts:
         infra: ./infra/docker
+        backend: ./backend
     ports:
       - "8080:8080"
     networks:

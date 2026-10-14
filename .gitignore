@@ -30,3 +30,7 @@ test-results/
 .vscode/
 .idea/
 .DS_Store
+
+# Generated from the backend's OpenAPI schema (see frontend/README.md)
+frontend/openapi.json
+frontend/src/api/schema.d.ts

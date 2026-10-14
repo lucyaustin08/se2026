@@ -35,6 +35,13 @@ jobs:
       - name: mypy (strict)
         run: $ANNOTATE "mypy" uv run mypy
 
+      - name: Migrations match the models
+        env:
+          DATABASE_URL: sqlite:///./migration-check.db
+        run: >-
+          $ANNOTATE "Alembic" sh -c "uv run alembic upgrade head && uv run alembic check
+          && uv run alembic downgrade base && uv run alembic upgrade head"
+
       - name: Tests with coverage
         run: >-
           $ANNOTATE "pytest" uv run pytest --cov=app --cov-report=term-missing:skip-covered
@@ -60,6 +67,19 @@ jobs:
 
       - name: Install dependencies from pnpm-lock.yaml
         run: $ANNOTATE "pnpm install" pnpm install --frozen-lockfile
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Export the backend's OpenAPI schema
+        working-directory: backend
+        run: >-
+          $ANNOTATE "OpenAPI export" sh -c "uv sync --locked --no-dev
+          && uv run --no-sync python -m scripts.export_openapi ../frontend/openapi.json"
+
+      - name: Generate API types
+        run: $ANNOTATE "openapi-typescript" pnpm gen:api
 
       - name: ESLint
         run: $ANNOTATE "ESLint" pnpm lint
@@ -87,6 +107,17 @@ jobs:
 
       - name: API answers through the frontend's nginx proxy
         run: $ANNOTATE "API via nginx" curl --fail --silent --show-error http://localhost:8080/api/v1/health
+
+      - name: Migrations ran and the sample band was loaded
+        run: >-
+          $ANNOTATE "Seeded members" sh -c
+          "curl --fail --silent --show-error http://localhost:8080/api/v1/members | grep -q 'Jordan Avery'"
+
+      - name: A manager can list gigs through the API
+        run: >-
+          $ANNOTATE "Gigs via nginx" sh -c
+          "curl --fail --silent --show-error -H 'X-Acting-Member-Id: 1' http://localhost:8080/api/v1/gigs
+          | grep -q 'The Blue Door'"
 
       - name: A client-side route serves the app
         run: >-
