@@ -22,7 +22,7 @@ export default defineConfig({
       provider: "v8",
       include: ["src/**/*.{ts,tsx}"],
       exclude: ["src/main.tsx", "src/**/*.test.{ts,tsx}", "src/**/*.d.ts", "src/test/**"],
-      reporter: ["text", "html"],
+      reporter: ["text", "html", "json-summary"],
       thresholds: { lines: 80 },
     },
   },

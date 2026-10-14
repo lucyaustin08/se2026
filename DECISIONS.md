@@ -510,3 +510,20 @@ Docker Compose stays exactly as it was. It's part of the stack contract, and CI 
 - Asking everyone to install Docker Desktop. Not taken: several teammates work only in the browser with GitHub and Copilot.
 
 **Pending:** confirm with the instructor that a dev container is fine as an addition to the stack.
+
+---
+
+## 2026-10-14 — Acceptance tests with Playwright, one per user story
+
+**Decision:** `frontend/e2e/` holds Playwright tests named after the user stories they accept:
+- the manager sees gigs in date order with their details
+- a member sees their own gigs, and only the date of others
+- the manager adds a gig, invites the band leader, the leader accepts, and the manager books it
+
+They run in CI against the real app in Docker Compose, in Eastern time, one at a time (they share a database). Playwright's HTML report and a summary table are saved on every run.
+
+They cover happy paths only, per the testing standard. Refusals and edge cases stay in the faster unit, API and page tests.
+
+**Alternatives considered:**
+- Cucumber-style `.feature` files. Not taken: they aren't in the course stack. Playwright is, and naming each test after its story keeps the mapping clear.
+- Running against MSW mocks. Not taken: acceptance tests should prove the real frontend, backend and database work together.

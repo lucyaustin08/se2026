@@ -45,7 +45,22 @@ jobs:
       - name: Tests with coverage
         run: >-
           $ANNOTATE "pytest" uv run pytest --cov=app --cov-report=term-missing:skip-covered
-          --cov-fail-under=80
+          --cov-report=html:reports/coverage-html --cov-report=xml:reports/coverage.xml
+          --junitxml=reports/junit.xml --cov-fail-under=80
+
+      - name: Test summary on the run page
+        if: always()
+        run: >-
+          python3 ../.github/scripts/test_summary.py "Backend tests" reports/junit.xml
+          --coverage-xml reports/coverage.xml >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save the backend coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage-report
+          path: backend/reports/coverage-html
+          if-no-files-found: ignore
 
   frontend:
     name: Frontend (lint, typecheck, test)
@@ -91,10 +106,26 @@ jobs:
         run: $ANNOTATE "Prettier" pnpm format:check
 
       - name: Tests with coverage
-        run: $ANNOTATE "Vitest" pnpm test:cov
+        run: >-
+          $ANNOTATE "Vitest" pnpm test:cov --reporter=default --reporter=junit
+          --outputFile.junit=reports/junit.xml
+
+      - name: Test summary on the run page
+        if: always()
+        run: >-
+          python3 ../.github/scripts/test_summary.py "Frontend tests" reports/junit.xml
+          --coverage-json coverage/coverage-summary.json >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save the frontend coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage-report
+          path: frontend/coverage
+          if-no-files-found: ignore
 
   docker:
-    name: Docker Compose smoke test
+    name: Docker Compose smoke test and acceptance tests
     runs-on: ubuntu-latest
     needs: [backend, frontend]
     env:
@@ -123,6 +154,39 @@ jobs:
         run: >-
           $ANNOTATE "Frontend route" sh -c
           "curl --fail --silent --show-error http://localhost:8080/gigs | grep -q 'id=\"root\"'"
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Install frontend dependencies for the acceptance tests
+        working-directory: frontend
+        run: corepack enable && pnpm install --frozen-lockfile
+
+      - name: Install the Playwright browser
+        working-directory: frontend
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Acceptance tests (Playwright, against the running app)
+        working-directory: frontend
+        env:
+          E2E_BASE_URL: http://localhost:8080
+        run: ../.github/scripts/annotate.sh "Playwright" pnpm exec playwright test
+
+      - name: Acceptance test summary on the run page
+        if: always()
+        working-directory: frontend
+        run: >-
+          python3 ../.github/scripts/test_summary.py "Acceptance tests (Playwright)"
+          reports/e2e-junit.xml >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save the acceptance test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: acceptance-test-report
+          path: frontend/playwright-report
+          if-no-files-found: ignore
 
       - name: Container logs on failure
         if: failure()
