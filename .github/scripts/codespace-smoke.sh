@@ -15,5 +15,13 @@ for _ in $(seq 1 90); do
 done
 
 echo "The app did not start. Last lines of scripts/dev.sh output:"
-tail -n 40 /tmp/dev.log
+tail -n 12 /tmp/dev.log
+echo "--- Python diagnostics ---"
+export PATH="$HOME/.local/bin:$PATH"
+cd backend
+uv --version
+uv python find
+.venv/bin/python -c "import sys; print(sys.version); print(sys.prefix, sys.base_prefix); print(sys.path)"
+ls "$(.venv/bin/python -c 'import sys; print(sys.base_prefix)')/lib/python3.14" | head -5
+env | grep -iE '^python|^uv_' || true
 exit 1
