@@ -39,7 +39,7 @@ export const CONTACT_LABELS: Record<ContactLabel, string> = {
 };
 
 export const GIG_STATUS_LABELS: Record<GigStatus, string> = {
-  potential: "Potential",
+  potential: "Pending",
   booked: "Booked",
   cancelled: "Cancelled",
 };

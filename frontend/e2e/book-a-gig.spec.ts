@@ -30,7 +30,7 @@ test.describe("Story: the manager adds a gig, invites the band, and books it", (
     await page.getByRole("button", { name: "Save gig" }).click();
 
     await expect(page.getByRole("heading", { level: 1, name: venue })).toBeVisible();
-    await expect(page.getByText("Potential", { exact: true })).toBeVisible();
+    await expect(page.getByText("Pending", { exact: true })).toBeVisible();
     const gigUrl = page.url();
 
     // The manager invites the band leader with their pay.

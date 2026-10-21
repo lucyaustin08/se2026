@@ -264,7 +264,7 @@ describe("gig detail page", () => {
     expect(await within(booking).findByRole("alert")).toHaveTextContent(
       "This gig can't be booked until it has: venue address, pay",
     );
-    expect(screen.getByText("Potential")).toBeInTheDocument();
+    expect(screen.getByText("Pending")).toBeInTheDocument();
   });
 
   it("books a gig once everyone has accepted", async () => {

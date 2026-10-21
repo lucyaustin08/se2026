@@ -79,7 +79,7 @@ describe("gigs page", () => {
     expect(links[0]).toHaveTextContent("Duo");
     expect(links[0]).toHaveTextContent("Booked");
     expect(links[1]).toHaveTextContent("Hub City Tap");
-    expect(links[1]).toHaveTextContent("Potential");
+    expect(links[1]).toHaveTextContent("Pending");
 
     const undated = screen.getByRole("region", { name: "Undated" });
     expect(within(undated).getByRole("link", { name: /Wedding inquiry/ })).toHaveTextContent(
