@@ -573,17 +573,52 @@ def test_a_morning_and_an_evening_gig_can_both_be_accepted(
     assert service.accept(riley, morning.id, slot.id).slots[0].status is SlotStatus.ACCEPTED
 
 
-def test_load_in_counts_toward_the_overlap(service: GigService, make: Factory) -> None:
+# The later gig in these tests starts its first set at BLUE_DOOR_FIRST_SET, with load-in two
+# hours before and soundcheck one hour before. A member only has to be there by soundcheck.
+
+
+def test_overlapping_only_the_load_in_can_be_accepted(service: GigService, make: Factory) -> None:
     riley = make.member()
-    earlier = make.gig(first_set_at=BLUE_DOOR_FIRST_SET - timedelta(hours=4))  # ends 1h before
+    # Ends 90 minutes before the later gig's first set: after its load-in, before its soundcheck.
+    earlier = make.gig(first_set_at=BLUE_DOOR_FIRST_SET - timedelta(minutes=270))
     make.slot(earlier, Role.BASS, riley, SlotStatus.ACCEPTED)
-    later = make.gig(first_set_at=BLUE_DOOR_FIRST_SET, load_in_offset_minutes=120)
+    later = make.gig(
+        first_set_at=BLUE_DOOR_FIRST_SET, load_in_offset_minutes=120, soundcheck_offset_minutes=60
+    )
+    slot = make.slot(later, Role.BASS, riley)
+
+    assert service.accept(riley, later.id, slot.id).slots[0].status is SlotStatus.ACCEPTED
+
+
+def test_overlapping_the_soundcheck_is_refused(service: GigService, make: Factory) -> None:
+    riley = make.member()
+    # Ends 30 minutes before the later gig's first set, half an hour after its soundcheck.
+    earlier = make.gig(first_set_at=BLUE_DOOR_FIRST_SET - timedelta(minutes=210))
+    make.slot(earlier, Role.BASS, riley, SlotStatus.ACCEPTED)
+    later = make.gig(
+        first_set_at=BLUE_DOOR_FIRST_SET, load_in_offset_minutes=120, soundcheck_offset_minutes=60
+    )
     slot = make.slot(later, Role.BASS, riley)
 
     with pytest.raises(BusinessRuleViolation) as error:
         service.accept(riley, later.id, slot.id)
 
     assert error.value.code == "overlapping_gig"
+
+
+def test_ending_exactly_at_the_next_soundcheck_can_be_accepted(
+    service: GigService, make: Factory
+) -> None:
+    riley = make.member()
+    # Ends exactly one hour before the later gig's first set, when its soundcheck starts.
+    earlier = make.gig(first_set_at=BLUE_DOOR_FIRST_SET - timedelta(hours=4))
+    make.slot(earlier, Role.BASS, riley, SlotStatus.ACCEPTED)
+    later = make.gig(
+        first_set_at=BLUE_DOOR_FIRST_SET, load_in_offset_minutes=120, soundcheck_offset_minutes=60
+    )
+    slot = make.slot(later, Role.BASS, riley)
+
+    assert service.accept(riley, later.id, slot.id).slots[0].status is SlotStatus.ACCEPTED
 
 
 def test_cancelled_and_undated_gigs_never_overlap(service: GigService, make: Factory) -> None:
@@ -613,6 +648,37 @@ def test_moving_a_gig_onto_a_members_other_gig_is_refused(
     assert error.value.code == "overlapping_gig"
     assert "Riley Chen" in error.value.detail
     assert stored(db, gig).first_set_at == BLUE_DOOR_FIRST_SET + timedelta(days=1)
+
+
+def test_moving_soundcheck_earlier_onto_a_members_other_gig_is_refused(
+    service: GigService, make: Factory, db: Session
+) -> None:
+    riley = make.member()
+    # Ends exactly at the gig's soundcheck, so it fits until soundcheck moves earlier.
+    other = make.gig(first_set_at=BLUE_DOOR_FIRST_SET - timedelta(hours=4))
+    make.slot(other, Role.BASS, riley, SlotStatus.ACCEPTED)
+    gig = make.gig(first_set_at=BLUE_DOOR_FIRST_SET, soundcheck_offset_minutes=60)
+    make.slot(gig, Role.BASS, riley, SlotStatus.ACCEPTED)
+
+    with pytest.raises(BusinessRuleViolation) as error:
+        service.update_gig(make.manager(), gig.id, GigUpdate(soundcheck_offset_minutes=90))
+
+    assert error.value.code == "overlapping_gig"
+    assert stored(db, gig).soundcheck_offset_minutes == 60
+
+
+def test_moving_load_in_earlier_onto_a_members_other_gig_is_allowed(
+    service: GigService, make: Factory, db: Session
+) -> None:
+    riley = make.member()
+    other = make.gig(first_set_at=BLUE_DOOR_FIRST_SET - timedelta(hours=4))
+    make.slot(other, Role.BASS, riley, SlotStatus.ACCEPTED)
+    gig = make.gig(first_set_at=BLUE_DOOR_FIRST_SET, soundcheck_offset_minutes=60)
+    make.slot(gig, Role.BASS, riley, SlotStatus.ACCEPTED)
+
+    service.update_gig(make.manager(), gig.id, GigUpdate(load_in_offset_minutes=180))
+
+    assert stored(db, gig).load_in_offset_minutes == 180
 
 
 # ---- What members can see -----------------------------------------------------------------

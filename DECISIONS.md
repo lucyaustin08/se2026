@@ -448,6 +448,8 @@ Recorded as given, for reference:
 
 ## 2026-10-13 — No member can accept two overlapping gigs
 
+> **Replaced 2026-10-27:** a member is now busy from soundcheck, not load-in. See "A member is busy from soundcheck to the end."
+
 **Decision:** A gig has a length (`performance_minutes`, default 180) after the first set, so it has a computed end time. A member is busy from **load-in to the end**.
 - Accepting an invitation is refused (`409 overlapping_gig`) if that window overlaps another gig the member already accepted.
 - Moving a gig's time so that it overlaps another gig an accepted member is on is also refused.
@@ -527,3 +529,17 @@ They cover happy paths only, per the testing standard. Refusals and edge cases s
 **Alternatives considered:**
 - Cucumber-style `.feature` files. Not taken: they aren't in the course stack. Playwright is, and naming each test after its story keeps the mapping clear.
 - Running against MSW mocks. Not taken: acceptance tests should prove the real frontend, backend and database work together.
+
+---
+
+## 2026-10-27 — A member is busy from soundcheck to the end
+
+**Decision:** For the overlap rule, a member on a gig is busy from **soundcheck to the end**, not from load-in. The product owner said every member must be able to be there "by soundcheck at the latest."
+- Accepting an invitation is refused (`409 overlapping_gig`) if this gig's soundcheck-to-end window overlaps the same window of another gig the member already accepted.
+- A gig that ends exactly when another gig's soundcheck starts is not an overlap.
+- Editing a gig re-checks accepted members when the first set, soundcheck offset or length changes. Changing only the load-in offset no longer triggers the check, because load-in no longer counts.
+- The same window will decide whether a member is free for a gig when availability is added.
+
+**Alternatives considered:**
+- Keeping load-in to end (the 2026-10-13 rule). Replaced: the product owner only requires members to arrive by soundcheck.
+- Using a different window for "can accept two gigs" and "is free for a gig." Not taken: the product owner gave one rule, and two windows would confuse members and the manager.

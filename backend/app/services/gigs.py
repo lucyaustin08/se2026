@@ -239,7 +239,7 @@ class GigService:
 
         times_changed = fields & {
             "first_set_at",
-            "load_in_offset_minutes",
+            "soundcheck_offset_minutes",
             "performance_minutes",
         }
         if times_changed:
@@ -277,7 +277,7 @@ class GigService:
                     )
 
     def _overlapping_gig(self, member_id: int, gig: Gig) -> Gig | None:
-        """Another gig the member accepted whose busy time (load-in to end) overlaps this one."""
+        """Another gig the member accepted whose busy time (soundcheck to end) overlaps this one."""
         window = _busy_window(gig)
         if window is None:
             return None
@@ -414,9 +414,14 @@ def _require_complete(gig: Gig, message_prefix: str) -> None:
 
 
 def _busy_window(gig: Gig) -> tuple[datetime, datetime] | None:
-    if gig.load_in_at is None or gig.end_at is None:
+    """When a member on this gig is busy: from soundcheck to the end.
+
+    Load-in doesn't count. The product owner's rule is that a member must be able to arrive
+    by soundcheck at the latest.
+    """
+    if gig.soundcheck_at is None or gig.end_at is None:
         return None
-    return gig.load_in_at, gig.end_at
+    return gig.soundcheck_at, gig.end_at
 
 
 def _slot_or_404(gig: Gig, slot_id: int) -> GigSlot:
