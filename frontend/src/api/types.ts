@@ -4,6 +4,8 @@ import type { components } from "./schema";
 
 type Schemas = components["schemas"];
 
+export type BusyPeriod = Schemas["BusyPeriod"];
+export type BusyPeriods = Schemas["BusyPeriods"];
 export type BusyTimeIn = Schemas["BusyTimeIn"];
 export type BusyTimeOut = Schemas["BusyTimeOut"];
 export type BusyTimePage = Schemas["BusyTimePage"];
@@ -31,6 +33,9 @@ export type PracticeCreate = Schemas["PracticeCreate"];
 export type PracticeOut = Schemas["PracticeOut"];
 export type PracticePage = Schemas["PracticePage"];
 export type PracticeSuggestions = Schemas["PracticeSuggestions"];
+export type RecurringBusyTimeIn = Schemas["RecurringBusyTimeIn"];
+export type RecurringBusyTimeOut = Schemas["RecurringBusyTimeOut"];
+export type RecurringBusyTimePage = Schemas["RecurringBusyTimePage"];
 export type Role = Schemas["Role"];
 export type SlotOut = Schemas["SlotOut"];
 export type SuggestedTime = Schemas["SuggestedTime"];

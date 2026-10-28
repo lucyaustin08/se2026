@@ -2,7 +2,7 @@
  * Calendar date math and entries, all in the browser's local time zone (see DECISIONS.md,
  * "Gig times entered in the browser's local time"). Pure functions, so they're easy to test.
  */
-import type { BusyTimeOut, GigListItem, PracticeOut } from "./api/types";
+import type { BusyPeriod, GigListItem, PracticeOut } from "./api/types";
 import { formatTime } from "./format";
 
 export type CalendarView = "month" | "week";
@@ -127,16 +127,22 @@ export function practiceEntry(practice: PracticeOut): CalendarEntry {
   };
 }
 
-export function busyEntry(busyTime: BusyTimeOut): CalendarEntry {
+/** A one-off busy time, or one day of a weekly one. */
+export function busyEntry(period: BusyPeriod): CalendarEntry {
+  const times = `${formatTime(period.starts_at)} – ${formatTime(period.ends_at)}`;
   return {
-    key: `busy-${busyTime.id}`,
+    // A weekly busy time has an entry for each of its days.
+    key: `busy-${period.kind}-${period.source_id}-${period.starts_at}`,
     kind: "busy",
-    start: new Date(busyTime.starts_at),
-    end: new Date(busyTime.ends_at),
-    label: `${initials(busyTime.member.name)} busy`,
-    detail: `${busyTime.member.name} is busy, ${formatTime(busyTime.starts_at)} – ${formatTime(busyTime.ends_at)}`,
-    memberId: busyTime.member.id,
-    memberName: busyTime.member.name,
+    start: new Date(period.starts_at),
+    end: new Date(period.ends_at),
+    label: `${initials(period.member.name)} busy`,
+    detail:
+      period.kind === "weekly"
+        ? `${period.member.name} is busy, ${times}, every week`
+        : `${period.member.name} is busy, ${times}`,
+    memberId: period.member.id,
+    memberName: period.member.name,
   };
 }
 

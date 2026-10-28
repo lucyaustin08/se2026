@@ -8,7 +8,8 @@ import { renderApp } from "../test/render";
 import { server } from "../test/server";
 
 // The fixtures in November 2026: Hub City Tap (pending gig) on Mon, Nov 2 at 8:00 PM; Riley
-// busy Tue, Nov 10, 6–9 PM; a practice Thu, Nov 12, 6–9 PM; Casey away Fri, Nov 13 to Sun, Nov 15.
+// busy Tue, Nov 10, 6–9 PM; a practice Thu, Nov 12, 6–9 PM; Casey away Fri, Nov 13 to Sun, Nov 15;
+// Sam busy every Wednesday, 6–9 PM, starting Nov 18.
 
 function calendar() {
   return screen.getByRole("region", { name: /November 2026|Nov \d+ – / });
@@ -65,6 +66,23 @@ describe("band calendar", () => {
       await within(details).findByText("Practice at Sam's garage, 6:00 PM – 9:00 PM"),
     ).toBeInTheDocument();
     expect(within(details).getByText("Practice", { selector: "span" })).toBeInTheDocument();
+  });
+
+  it("puts a weekly busy time on each of its days, and says it repeats", async () => {
+    renderApp("/scheduling?date=2026-11-18", { as: asManager });
+
+    expect(
+      await within(calendar()).findByRole("button", {
+        name: "Wednesday, November 18, 2026, 1 item",
+      }),
+    ).toBeInTheDocument();
+    expect(dayButton(/^Wednesday, November 25, 2026, 1 item$/)).toBeInTheDocument();
+    expect(dayButton(/^Wednesday, December 2, 2026, 1 item$/)).toBeInTheDocument();
+    // It starts on Nov 18, so the Wednesday before is clear.
+    expect(dayButton(/^Wednesday, November 11, 2026$/)).toBeInTheDocument();
+    expect(
+      within(dayDetails()).getByText("Sam Rivera is busy, 6:00 PM – 9:00 PM, every week"),
+    ).toBeInTheDocument();
   });
 
   it("selects a day when it's clicked", async () => {

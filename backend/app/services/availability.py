@@ -4,13 +4,18 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
+from app.core.config import BAND_TIME_ZONE_NAME
 from app.core.errors import NotFoundError, PermissionDeniedError
-from app.models.availability import BusyTime
+from app.models.availability import BusyTime, RecurringBusyTime
 from app.models.member import Member
-from app.repositories.availability import BusyTimeRepository
+from app.repositories.availability import BusyTimeRepository, RecurringBusyTimeRepository
 from app.repositories.gigs import GigRepository
 from app.repositories.members import MemberRepository
 from app.schemas.availability import (
+    BusyPeriod,
+    BusyPeriodKind,
+    BusyPeriods,
+    BusyPeriodsQuery,
     BusyTimeIn,
     BusyTimeOut,
     BusyTimePage,
@@ -19,6 +24,10 @@ from app.schemas.availability import (
     ConflictKind,
     GigAvailability,
     PlayerAvailability,
+    RecurringBusyTimeIn,
+    RecurringBusyTimeOut,
+    RecurringBusyTimePage,
+    RecurringBusyTimeSort,
 )
 from app.schemas.members import MemberSummary
 from app.services.gigs import busy_window
@@ -29,6 +38,7 @@ class AvailabilityService:
     def __init__(self, session: Session) -> None:
         self._session = session
         self._busy_times = BusyTimeRepository(session)
+        self._recurring = RecurringBusyTimeRepository(session)
         self._gigs = GigRepository(session)
         self._members = MemberRepository(session)
 
@@ -88,6 +98,95 @@ class AvailabilityService:
         self._busy_times.delete(self._own_busy_time(actor, busy_time_id))
         self._session.commit()
 
+    # ---- Weekly busy times ----------------------------------------------------------------------
+
+    def list_recurring(
+        self,
+        actor: Member,
+        *,
+        member_id: int | None,
+        sort: RecurringBusyTimeSort,
+        page: int,
+        page_size: int,
+    ) -> RecurringBusyTimePage:
+        """Same visibility as one-off busy times."""
+        member_id = self._visible_member(actor, member_id)
+        rules, total = self._recurring.search(
+            member_id=member_id, sort=sort, page=page, page_size=page_size
+        )
+        return RecurringBusyTimePage(
+            items=[_recurring_out(rule) for rule in rules],
+            total=total,
+            page=page,
+            page_size=page_size,
+        )
+
+    def add_recurring(self, actor: Member, data: RecurringBusyTimeIn) -> RecurringBusyTimeOut:
+        rule = self._recurring.add(
+            RecurringBusyTime(
+                member_id=actor.id,
+                weekdays=data.weekdays,
+                start_time=data.start_time,
+                end_time=data.end_time,
+                starts_on=data.starts_on,
+                ends_on=data.ends_on,
+                time_zone=BAND_TIME_ZONE_NAME,
+            )
+        )
+        self._session.commit()
+        self._session.refresh(rule)
+        return _recurring_out(rule)
+
+    def change_recurring(
+        self, actor: Member, rule_id: int, data: RecurringBusyTimeIn
+    ) -> RecurringBusyTimeOut:
+        rule = self._own_recurring(actor, rule_id)
+        rule.weekdays = data.weekdays
+        rule.start_time = data.start_time
+        rule.end_time = data.end_time
+        rule.starts_on = data.starts_on
+        rule.ends_on = data.ends_on
+        self._session.commit()
+        return _recurring_out(rule)
+
+    def delete_recurring(self, actor: Member, rule_id: int) -> None:
+        self._recurring.delete(self._own_recurring(actor, rule_id))
+        self._session.commit()
+
+    # ---- Every busy period in a range, for the calendar --------------------------------------
+
+    def busy_periods(self, actor: Member, query: BusyPeriodsQuery) -> BusyPeriods:
+        """One-off busy times and each day of the weekly ones that overlap the range. The
+        manager and band leader see everyone's; members see only their own."""
+        start, end = query.ends_after, query.starts_before
+        member_ids = None if runs_the_band(actor) else [actor.id]
+        periods = [
+            BusyPeriod(
+                kind=BusyPeriodKind.ONE_OFF,
+                source_id=busy_time.id,
+                member=MemberSummary.model_validate(busy_time.member),
+                starts_at=busy_time.starts_at,
+                ends_at=busy_time.ends_at,
+            )
+            for busy_time in self._busy_times.overlapping_any(start, end, member_ids=member_ids)
+        ]
+        names = {m.id: m for m in self._members.players()}
+        for occurrence in self._recurring.occurrences(start, end, member_ids=member_ids):
+            member = names.get(occurrence.member_id)
+            periods.append(
+                BusyPeriod(
+                    kind=BusyPeriodKind.WEEKLY,
+                    source_id=occurrence.rule_id,
+                    member=MemberSummary(
+                        id=occurrence.member_id, name=member.name if member else ""
+                    ),
+                    starts_at=occurrence.starts_at,
+                    ends_at=occurrence.ends_at,
+                )
+            )
+        periods.sort(key=lambda p: (p.starts_at, p.kind, p.source_id))
+        return BusyPeriods(ends_after=start, starts_before=end, periods=periods)
+
     # ---- Who can play a gig ------------------------------------------------------------------
 
     def gig_availability(self, actor: Member, gig_id: int) -> GigAvailability:
@@ -125,6 +224,16 @@ class AvailabilityService:
             )
             for busy_time in self._busy_times.overlapping(member.id, start, end)
         ]
+        conflicts += [
+            Conflict(
+                kind=ConflictKind.WEEKLY_BUSY_TIME,
+                starts_at=occurrence.starts_at,
+                ends_at=occurrence.ends_at,
+                gig_id=None,
+                venue_name=None,
+            )
+            for occurrence in self._recurring.occurrences(start, end, member_ids=[member.id])
+        ]
         for other in self._gigs.accepted_by_member(member.id, exclude_gig_id=gig_id):
             other_window = busy_window(other)
             if other_window is not None and other_window[0] < end and start < other_window[1]:
@@ -138,6 +247,30 @@ class AvailabilityService:
                     )
                 )
         return sorted(conflicts, key=lambda conflict: conflict.starts_at)
+
+    def _visible_member(self, actor: Member, member_id: int | None) -> int | None:
+        """Whose busy times this actor may list: anyone's for the manager and band leader,
+        only their own for everyone else."""
+        if runs_the_band(actor):
+            return member_id
+        if member_id is not None and member_id != actor.id:
+            raise PermissionDeniedError(
+                "Only the manager and band leader can see other members' availability.",
+                code="availability_private",
+            )
+        return actor.id
+
+    def _own_recurring(self, actor: Member, rule_id: int) -> RecurringBusyTime:
+        rule = self._recurring.get(rule_id)
+        if rule is None:
+            raise NotFoundError(
+                "That weekly busy time doesn't exist.", code="recurring_busy_time_not_found"
+            )
+        if rule.member_id != actor.id:
+            raise PermissionDeniedError(
+                "You can only change your own busy times.", code="not_your_busy_time"
+            )
+        return rule
 
     def _own_busy_time(self, actor: Member, busy_time_id: int) -> BusyTime:
         busy_time = self._busy_times.get(busy_time_id)
@@ -157,6 +290,20 @@ def _busy_time_out(busy_time: BusyTime) -> BusyTimeOut:
         starts_at=busy_time.starts_at,
         ends_at=busy_time.ends_at,
         created_at=busy_time.created_at,
+    )
+
+
+def _recurring_out(rule: RecurringBusyTime) -> RecurringBusyTimeOut:
+    return RecurringBusyTimeOut(
+        id=rule.id,
+        member=MemberSummary.model_validate(rule.member),
+        weekdays=list(rule.weekdays),
+        start_time=rule.start_time,
+        end_time=rule.end_time,
+        starts_on=rule.starts_on,
+        ends_on=rule.ends_on,
+        time_zone=rule.time_zone,
+        created_at=rule.created_at,
     )
 
 

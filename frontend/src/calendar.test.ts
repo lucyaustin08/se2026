@@ -14,7 +14,7 @@ import {
   visibleDays,
   type CalendarEntry,
 } from "./calendar";
-import { caseyAway, garagePractice, hubCity, toListItem } from "./test/fixtures";
+import { caseyAway, garagePractice, hubCity, toListItem, toPeriod } from "./test/fixtures";
 
 // Tests run in America/New_York (see vite.config.ts).
 const day = (key: string) => parseDayKey(key) as Date;
@@ -66,7 +66,7 @@ describe("calendar days", () => {
 
 describe("calendar entries", () => {
   it("puts a busy time on every day it touches", () => {
-    const entries = [busyEntry(caseyAway)];
+    const entries = [busyEntry(toPeriod(caseyAway))];
     expect(
       ["2026-11-12", "2026-11-13", "2026-11-14", "2026-11-15", "2026-11-16"].map(
         (key) => entriesOn(day(key), entries).length,
@@ -96,7 +96,26 @@ describe("calendar entries", () => {
   });
 
   it("labels busy times with the member's initials", () => {
-    expect(busyEntry(caseyAway).label).toBe("CM busy");
+    expect(busyEntry(toPeriod(caseyAway)).label).toBe("CM busy");
+    expect(busyEntry(toPeriod(caseyAway)).detail).toBe("Casey Morgan is busy, 9:00 AM – 6:00 PM");
     expect(initials("Riley  Chen-Park")).toBe("RC");
+  });
+
+  it("says a day of a weekly busy time repeats, and keys each day apart", () => {
+    const wednesday = {
+      kind: "weekly" as const,
+      source_id: 401,
+      member: { id: 2, name: "Sam Rivera" },
+      starts_at: "2026-11-18T23:00:00Z",
+      ends_at: "2026-11-19T02:00:00Z",
+    };
+    const nextWeek = {
+      ...wednesday,
+      starts_at: "2026-11-25T23:00:00Z",
+      ends_at: "2026-11-26T02:00:00Z",
+    };
+
+    expect(busyEntry(wednesday).detail).toBe("Sam Rivera is busy, 6:00 PM – 9:00 PM, every week");
+    expect(busyEntry(wednesday).key).not.toBe(busyEntry(nextWeek).key);
   });
 });

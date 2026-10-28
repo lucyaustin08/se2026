@@ -734,3 +734,24 @@ The overlap check that was private to the gig service is now `busy_window()`, so
 - Running tests on SQLite as well. Not taken: tests that pass on SQLite can fail on PostgreSQL (length limits, text sort order), so the tests should run on the database the app uses.
 
 **Known differences now enforced:** PostgreSQL refuses text longer than its column, where SQLite silently stored it. The request schemas already use the same limits.
+
+---
+
+## 2026-10-28 — Recurring busy times
+
+**Decision:** A member's weekly busy time is stored as a rule, and PostgreSQL works out the real times from it when they're needed. Nothing is stored for each week.
+- **Stored:** the member, which days of the week (ISO numbers, 1 is Monday and 7 is Sunday), a start and end clock time, a first date, an optional last date, and the time zone (`America/New_York`, set by the server from `BAND_TIME_ZONE_NAME`). No reason field, as the product owner said.
+- **Clock times, not moments.** 8:00 AM stays 8:00 AM all year: PostgreSQL adds the clock time to each date and converts it with `AT TIME ZONE`, which applies daylight saving for that date. Each rule keeps its zone, so a band in another zone later wouldn't change what existing rules mean.
+- **Past midnight:** an end time at or before the start time ends the next day (Saturday 10:00 PM to 2:00 AM Sunday). The same start and end time is refused (`422`). The first and last dates limit when a busy time can start.
+- **Where they count:** everywhere a one-off busy time counts, from one query (`RecurringBusyTimeRepository.occurrences`): the invite list's busy marks (`weekly_busy_time` conflicts), Find a time, and the calendar.
+- **Endpoints:** `/recurring-busy-times` (list, add, change, delete), with the same visibility as one-off busy times: members see and change only their own; the manager and band leader see everyone's. `PATCH` sends every field again. The list has no `q`, because there's no text to search.
+- **Calendar:** `GET /busy-times/periods?ends_after=…&starts_before=…` returns one-off busy times and each day of the weekly ones in one list. It isn't paged: the range is limited to 62 days instead (a month view is at most 42), so the calendar never misses entries past a page boundary.
+- **Delete is a real delete,** like one-off busy times. A busy time that's no longer true has nothing worth keeping, and the member can always add it again.
+- **In the app:** the Add busy time pop-up asks One-off or Repeats weekly. Your busy times lists weekly ones under "Every week" and one-offs under "One-off"; Everyone's busy times lists both under each member.
+
+**Alternatives considered:**
+- Storing a row for every week. Not taken: rules with no last date would need rows forever and a job to keep adding them, and the course rule is to compute derived values, not store them.
+- Working out the weeks in Python with `zoneinfo`, as Find a time already does for its candidate times. Not taken: the instructor asked for the database to handle time zones, and one query serves the gig page, the calendar and Find a time alike.
+- Storing the times in UTC. Not taken: a busy time from 8:00 AM to 5:00 PM would move by an hour every time the clocks change.
+- Letting the calendar page through `/busy-times`. Not taken: weekly busy times aren't rows to page through, and a calendar wants everything in its range at once.
+- A newer weekly busy time ending an older one automatically. Not taken: the product owner didn't ask for it, and members can have more than one regular commitment (a job and a class).

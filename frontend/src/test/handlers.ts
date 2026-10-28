@@ -5,6 +5,7 @@
 import { http, HttpResponse } from "msw";
 
 import type {
+  BusyPeriod,
   BusyTimeIn,
   BusyTimeOut,
   ErrorResponse,
@@ -20,6 +21,8 @@ import type {
   PracticeCreate,
   PracticeOut,
   PracticeSuggestions,
+  RecurringBusyTimeIn,
+  RecurringBusyTimeOut,
   SlotOut,
 } from "../api/types";
 import {
@@ -31,7 +34,9 @@ import {
   practiceSuggestions,
   gigDetails,
   hubCity,
+  allWeeklyBusyTimes,
   toListItem,
+  toPeriod,
   undatedDraft,
 } from "./fixtures";
 
@@ -59,6 +64,8 @@ let store = new Map<number, GigDetail>();
 let profiles = new Map<number, MemberProfile>();
 let busyTimes = new Map<number, BusyTimeOut>();
 let nextBusyTimeId = 900;
+let weeklyBusyTimes = new Map<number, RecurringBusyTimeOut>();
+let nextWeeklyId = 960;
 let practices = new Map<number, PracticeOut>();
 
 export function resetMockData(): void {
@@ -66,6 +73,8 @@ export function resetMockData(): void {
   profiles = new Map(allProfiles.map((profile) => [profile.id, profile]));
   busyTimes = new Map(allBusyTimes.map((busyTime) => [busyTime.id, busyTime]));
   nextBusyTimeId = 900;
+  weeklyBusyTimes = new Map(allWeeklyBusyTimes.map((rule) => [rule.id, rule]));
+  nextWeeklyId = 960;
   practices = new Map([[garagePractice.id, garagePractice]]);
 }
 
@@ -114,6 +123,57 @@ const notYourBusyTime = () =>
   HttpResponse.json(errorBody("not_your_busy_time", "You can only change your own busy times."), {
     status: 403,
   });
+
+const weeklyNotFound = () =>
+  HttpResponse.json(
+    errorBody("recurring_busy_time_not_found", "That weekly busy time doesn't exist."),
+    { status: 404 },
+  );
+
+/** Whose busy times this request may see: null for everyone, as the backend decides. */
+function busyTimesMemberId(request: Request): number | null | undefined {
+  const actor = actingProfile(request);
+  const asked = new URL(request.url).searchParams.get("member_id");
+  const seesEveryone = actor?.is_manager || actor?.is_band_leader;
+  return asked ? Number(asked) : seesEveryone ? null : actor?.id;
+}
+
+/**
+ * Each day of a weekly busy time that overlaps [start, end), like the backend's query. Tests
+ * run in America/New_York, the band's zone, so local dates and times here are the band's.
+ */
+function weeklyPeriods(rule: RecurringBusyTimeOut, start: Date, end: Date): BusyPeriod[] {
+  const [startHour, startMinute] = rule.start_time.split(":").map(Number);
+  const [endHour, endMinute] = rule.end_time.split(":").map(Number);
+  const overnight = rule.end_time <= rule.start_time;
+  const periods: BusyPeriod[] = [];
+  // Start a day early: the night before can run past midnight into the range.
+  const first = new Date(start.getFullYear(), start.getMonth(), start.getDate() - 1);
+  for (
+    let day = first;
+    day < end;
+    day = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1)
+  ) {
+    const key = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
+    if (key < rule.starts_on || (rule.ends_on && key > rule.ends_on)) continue;
+    if (!rule.weekdays.includes(day.getDay() === 0 ? 7 : day.getDay())) continue;
+    const y = day.getFullYear();
+    const m = day.getMonth();
+    const d = day.getDate();
+    const startsAt = new Date(y, m, d, startHour, startMinute);
+    const endsAt = new Date(y, m, d + (overnight ? 1 : 0), endHour, endMinute);
+    if (startsAt < end && endsAt > start) {
+      periods.push({
+        kind: "weekly",
+        source_id: rule.id,
+        member: rule.member,
+        starts_at: startsAt.toISOString(),
+        ends_at: endsAt.toISOString(),
+      });
+    }
+  }
+  return periods;
+}
 
 function actingProfile(request: Request): MemberProfile | undefined {
   return profiles.get(Number(request.headers.get("X-Acting-Member-Id")));
@@ -320,13 +380,31 @@ export const handlers = [
     }),
   ),
 
+  http.get("*/api/v1/busy-times/periods", ({ request }) => {
+    const refused = requireActingMember(request);
+    if (refused) return refused;
+    const memberId = busyTimesMemberId(request);
+    const params = new URL(request.url).searchParams;
+    const endsAfter = params.get("ends_after") ?? "";
+    const startsBefore = params.get("starts_before") ?? "";
+    const start = new Date(endsAfter);
+    const end = new Date(startsBefore);
+    const mine = (owner: { id: number }) => memberId === null || owner.id === memberId;
+    const periods = [
+      ...[...busyTimes.values()]
+        .filter((b) => mine(b.member) && new Date(b.starts_at) < end && new Date(b.ends_at) > start)
+        .map(toPeriod),
+      ...[...weeklyBusyTimes.values()]
+        .filter((rule) => mine(rule.member))
+        .flatMap((rule) => weeklyPeriods(rule, start, end)),
+    ].sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime());
+    return HttpResponse.json({ ends_after: endsAfter, starts_before: startsBefore, periods });
+  }),
+
   http.get("*/api/v1/busy-times", ({ request }) => {
     const refused = requireActingMember(request);
     if (refused) return refused;
-    const actor = actingProfile(request);
-    const asked = new URL(request.url).searchParams.get("member_id");
-    const seesEveryone = actor?.is_manager || actor?.is_band_leader;
-    const memberId = asked ? Number(asked) : seesEveryone ? null : actor?.id;
+    const memberId = busyTimesMemberId(request);
     const items = [...busyTimes.values()]
       .filter((busyTime) => memberId === null || busyTime.member.id === memberId)
       .sort((a, b) => a.starts_at.localeCompare(b.starts_at));
@@ -371,6 +449,69 @@ export const handlers = [
     if (!busyTime) return busyTimeNotFound();
     if (busyTime.member.id !== actingProfile(request)?.id) return notYourBusyTime();
     busyTimes.delete(busyTime.id);
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  http.get("*/api/v1/recurring-busy-times", ({ request }) => {
+    const refused = requireActingMember(request);
+    if (refused) return refused;
+    const memberId = busyTimesMemberId(request);
+    const items = [...weeklyBusyTimes.values()]
+      .filter((rule) => memberId === null || rule.member.id === memberId)
+      .sort((a, b) => a.starts_on.localeCompare(b.starts_on));
+    return HttpResponse.json(page(items));
+  }),
+
+  http.post("*/api/v1/recurring-busy-times", async ({ request }) => {
+    const refused = requireActingMember(request);
+    if (refused) return refused;
+    const actor = actingProfile(request);
+    const body = (await request.json()) as RecurringBusyTimeIn;
+    const created: RecurringBusyTimeOut = {
+      id: nextWeeklyId++,
+      member: { id: actor?.id ?? 0, name: actor?.name ?? "" },
+      weekdays: body.weekdays,
+      // The backend sends times back with seconds.
+      start_time: `${body.start_time}:00`,
+      end_time: `${body.end_time}:00`,
+      starts_on: body.starts_on,
+      ends_on: body.ends_on ?? null,
+      time_zone: "America/New_York",
+      created_at: "2026-10-28T12:00:00Z",
+    };
+    weeklyBusyTimes.set(created.id, created);
+    return HttpResponse.json(created, {
+      status: 201,
+      headers: { Location: `/api/v1/recurring-busy-times/${created.id}` },
+    });
+  }),
+
+  http.patch("*/api/v1/recurring-busy-times/:ruleId", async ({ request, params }) => {
+    const refused = requireActingMember(request);
+    if (refused) return refused;
+    const rule = weeklyBusyTimes.get(Number(params.ruleId));
+    if (!rule) return weeklyNotFound();
+    if (rule.member.id !== actingProfile(request)?.id) return notYourBusyTime();
+    const body = (await request.json()) as RecurringBusyTimeIn;
+    const changed: RecurringBusyTimeOut = {
+      ...rule,
+      weekdays: body.weekdays,
+      start_time: `${body.start_time}:00`,
+      end_time: `${body.end_time}:00`,
+      starts_on: body.starts_on,
+      ends_on: body.ends_on ?? null,
+    };
+    weeklyBusyTimes.set(changed.id, changed);
+    return HttpResponse.json(changed);
+  }),
+
+  http.delete("*/api/v1/recurring-busy-times/:ruleId", ({ request, params }) => {
+    const refused = requireActingMember(request);
+    if (refused) return refused;
+    const rule = weeklyBusyTimes.get(Number(params.ruleId));
+    if (!rule) return weeklyNotFound();
+    if (rule.member.id !== actingProfile(request)?.id) return notYourBusyTime();
+    weeklyBusyTimes.delete(rule.id);
     return new HttpResponse(null, { status: 204 });
   }),
 

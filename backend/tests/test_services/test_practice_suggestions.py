@@ -176,3 +176,15 @@ def test_default_search_is_5_to_11_pm_for_3_hours() -> None:
 
     assert (query.earliest, query.latest, query.length_minutes) == (time(17), time(23), 180)
     assert timedelta(minutes=query.length_minutes) == timedelta(hours=3)
+
+
+def test_a_weekly_busy_time_moves_each_of_its_days(service: PracticeService, make: Factory) -> None:
+    riley = make.member()
+    # Tuesdays, 5:00 to 7:00 PM. Tuesdays in the search are Nov 10 and Nov 17.
+    make.weekly(riley, [2], time(17), time(19), date(2026, 10, 1))
+
+    result = suggest(service, make.manager(), [riley])
+
+    assert local(10, 19) in starts(result) and local(17, 19) in starts(result)
+    assert local(10, 17) not in starts(result) and local(17, 17) not in starts(result)
+    assert local(11, 17) in starts(result)

@@ -1,4 +1,5 @@
 import type {
+  BusyPeriod,
   BusyTimeOut,
   GigDetail,
   GigListItem,
@@ -6,6 +7,7 @@ import type {
   MemberRead,
   PracticeOut,
   PracticeSuggestions,
+  RecurringBusyTimeOut,
   SlotOut,
 } from "../api/types";
 import type { ActingMember } from "../session";
@@ -264,6 +266,32 @@ export const caseyAway: BusyTimeOut = {
 };
 
 export const allBusyTimes: BusyTimeOut[] = [rileyBusy, caseyAway];
+
+/** A one-off busy time as the calendar gets it. */
+export function toPeriod(busyTime: BusyTimeOut): BusyPeriod {
+  return {
+    kind: "one_off",
+    source_id: busyTime.id,
+    member: busyTime.member,
+    starts_at: busyTime.starts_at,
+    ends_at: busyTime.ends_at,
+  };
+}
+
+/** Sam is busy every Wednesday, 6:00–9:00 PM Eastern, starting Wed, Nov 18, 2026. */
+export const samWednesdays: RecurringBusyTimeOut = {
+  id: 401,
+  member: { id: sam.id, name: sam.name },
+  weekdays: [3],
+  start_time: "18:00:00",
+  end_time: "21:00:00",
+  starts_on: "2026-11-18",
+  ends_on: null,
+  time_zone: "America/New_York",
+  created_at: "2026-10-20T12:00:00Z",
+};
+
+export const allWeeklyBusyTimes: RecurringBusyTimeOut[] = [samWednesdays];
 
 /**
  * A practice Sam scheduled for 6:00–9:00 PM Eastern on Thu, Nov 12, 2026. Sam is coming,

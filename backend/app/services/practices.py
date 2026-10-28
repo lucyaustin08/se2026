@@ -9,7 +9,7 @@ from app.models.enums import InvitationStatus
 from app.models.gig import Gig
 from app.models.member import Member
 from app.models.practice import Practice, PracticeInvitation
-from app.repositories.availability import BusyTimeRepository
+from app.repositories.availability import BusyTimeRepository, RecurringBusyTimeRepository
 from app.repositories.gigs import GigRepository
 from app.repositories.members import MemberRepository
 from app.repositories.practices import PracticeRepository
@@ -46,6 +46,7 @@ class PracticeService:
         self._gigs = GigRepository(session)
         self._members = MemberRepository(session)
         self._busy_times = BusyTimeRepository(session)
+        self._recurring = RecurringBusyTimeRepository(session)
 
     # ---- Reading -----------------------------------------------------------------------------
 
@@ -208,14 +209,18 @@ class PracticeService:
     def _member_busy_periods(
         self, member: Member, start: datetime, end: datetime
     ) -> list[tuple[datetime, datetime]]:
-        """When a member can't come to a practice: their busy times, and other practices they
-        haven't declined."""
+        """When a member can't come to a practice: their one-off and weekly busy times, and
+        other practices they haven't declined."""
         periods = [
             (b.starts_at, b.ends_at) for b in self._busy_times.overlapping(member.id, start, end)
         ]
         periods += [
             (p.starts_at, p.ends_at)
             for p in self._practices.overlapping_for_member(member.id, start, end)
+        ]
+        periods += [
+            (o.starts_at, o.ends_at)
+            for o in self._recurring.occurrences(start, end, member_ids=[member.id])
         ]
         return periods
 
