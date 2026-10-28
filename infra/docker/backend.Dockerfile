@@ -17,16 +17,14 @@ COPY . .
 FROM python:3.14-slim AS runtime
 
 RUN groupadd --system app \
-    && useradd --system --gid app --home-dir /app --no-create-home app \
-    && mkdir -p /data \
-    && chown app:app /data
+    && useradd --system --gid app --home-dir /app --no-create-home app
 
 WORKDIR /app
 COPY --from=build --chown=app:app /app /app
 
+# DATABASE_URL (PostgreSQL) comes from Docker Compose; it holds a password, so it isn't baked in.
 ENV PATH="/app/.venv/bin:$PATH" \
-    PYTHONUNBUFFERED=1 \
-    DATABASE_URL=sqlite:////data/roadhouse.db
+    PYTHONUNBUFFERED=1
 
 USER app
 EXPOSE 8000

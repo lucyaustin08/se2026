@@ -3,16 +3,23 @@
 #
 #   bash scripts/dev.sh
 #
-# Works in GitHub Codespaces and on any machine with uv and pnpm installed. The database is a
-# SQLite file at backend/roadhouse-dev.db; delete it to start over with fresh sample data.
+# Works in GitHub Codespaces, where it also starts the codespace's own PostgreSQL. Anywhere
+# else, set DATABASE_URL to a PostgreSQL database you run yourself and it's used instead.
+# To start over with fresh sample data in a codespace:
+#   sudo runuser -u postgres -- dropdb roadhouse   (then run this script again)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 export PATH="$HOME/.local/bin:$PATH"
 # Use uv's full Python build, never a cut-down system Python (see .devcontainer).
 export UV_PYTHON_PREFERENCE="${UV_PYTHON_PREFERENCE:-only-managed}"
-export DATABASE_URL="${DATABASE_URL:-sqlite:///$ROOT/backend/roadhouse-dev.db}"
 export SEED_SAMPLE_DATA="${SEED_SAMPLE_DATA:-true}"
+
+if [ -z "${DATABASE_URL:-}" ]; then
+  echo "==> Starting PostgreSQL"
+  bash "$ROOT/scripts/start-postgres.sh"
+  export DATABASE_URL="postgresql+psycopg://roadhouse:roadhouse@localhost:5432/roadhouse"
+fi
 
 echo "==> Preparing the database"
 cd "$ROOT/backend"

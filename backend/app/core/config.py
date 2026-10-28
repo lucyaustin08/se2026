@@ -3,7 +3,9 @@
 import os
 from dataclasses import dataclass
 
-DEFAULT_DATABASE_URL = "sqlite:///./roadhouse.db"
+# The local development database that scripts/dev.sh starts in a codespace. Its password is
+# only ever used on that one machine; Docker Compose and anything shared set DATABASE_URL.
+DEFAULT_DATABASE_URL = "postgresql+psycopg://roadhouse:roadhouse@localhost:5432/roadhouse"
 
 
 @dataclass(frozen=True, slots=True)

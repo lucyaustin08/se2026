@@ -10,6 +10,10 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 # pnpm comes through Corepack, at the version pinned in frontend/package.json.
 corepack enable --install-directory "$HOME/.local/bin"
 
+# PostgreSQL, the app's database. scripts/dev.sh starts it and creates the database.
+sudo apt-get update --quiet
+sudo apt-get install --yes --no-install-recommends --quiet postgresql
+
 cd "$(dirname "$0")/.."
 (cd backend && uv sync --locked)
 (cd frontend && pnpm install --frozen-lockfile)

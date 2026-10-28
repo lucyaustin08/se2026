@@ -714,3 +714,23 @@ The overlap check that was private to the gig service is now `busy_window()`, so
 - Every possible time, not one per day. Not taken: dozens of near-identical half-hour slots on one evening bury the choice between days, which is the real decision.
 - Only suggesting times when everyone can come. Not taken: the product owner said a smaller group can still meet, and asked for the times that work for the most people.
 - Recurring busy times aren't built yet. When they are, they join the same per-member check (`_member_busy_periods`), so suggestions and the invite list stay in step.
+
+---
+
+## 2026-10-28 — PostgreSQL instead of SQLite
+
+**Decision:** The app, its tests and every environment now use PostgreSQL 17. SQLite support is removed. The instructor suggested moving to a database server that handles time zones and daylight saving itself, and left the choice of server to the team, which chose PostgreSQL. This departs from the stack contract's "SQLite by default," using the PostgreSQL option the contract already names (`postgresql+psycopg://`).
+- **Why:** PostgreSQL stores times as real moments (`timestamp with time zone`), not text, and does time math in the database, including `AT TIME ZONE 'America/New_York'` with daylight saving. Recurring busy times need that. It's also what a band using the app for real gigs would run on.
+- **Driver:** `psycopg[binary]`, so no PostgreSQL client library has to be installed anywhere. Every connection works in UTC (`-c timezone=UTC`), whatever zone the server runs in.
+- **Docker Compose** runs a `db` service (`postgres:17`). Its password comes from a `.env` file that's never committed, and Compose stops with a clear message if it's missing. The database isn't published on a host port. The SQLite volume is gone.
+- **Codespaces:** the dev container installs PostgreSQL, and `scripts/dev.sh` starts it through `scripts/start-postgres.sh`, which creates the `roadhouse` user and database if they're missing. That user's password ("roadhouse") only exists inside each codespace.
+- **Tests** run on PostgreSQL only, at `TEST_DATABASE_URL`, in their own `roadhouse_test` database. Tables are built from the models once per run, and every table is emptied (`TRUNCATE … RESTART IDENTITY`) after each test. CI runs the migration check (upgrade, check, downgrade, upgrade) and the tests against a PostgreSQL 17 service.
+- **Migrations 0001–0005 are unchanged.** Their `batch_alter_table` blocks run as ordinary `ALTER TABLE` statements on PostgreSQL.
+- **No data is carried over** from SQLite. Development databases start again from the sample band, which is fine before the band uses the app for real.
+
+**Alternatives considered:**
+- MariaDB. Not taken: it isn't in the stack contract, needs a different driver, only knows named time zones once its time zone tables are loaded, and its `TIMESTAMP` type ends in 2038.
+- Keeping SQLite and doing time zone math in Python with `zoneinfo`. It works, and practices already do it, but the instructor wanted the database to handle time zones.
+- Running tests on SQLite as well. Not taken: tests that pass on SQLite can fail on PostgreSQL (length limits, text sort order), so the tests should run on the database the app uses.
+
+**Known differences now enforced:** PostgreSQL refuses text longer than its column, where SQLite silently stored it. The request schemas already use the same limits.
