@@ -9,7 +9,7 @@ import { ROLE_LABELS } from "../format";
 import { useSession } from "../session";
 
 const choiceButton =
-  "w-full rounded border border-gray-300 px-4 py-3 text-left hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-brand-600";
+  "w-full border border-gray-300 px-4 py-3 text-left hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-brand-600";
 
 export function LoginPage() {
   const { signIn } = useSession();
@@ -25,23 +25,28 @@ export function LoginPage() {
   }
 
   return (
-    <main className="mx-auto max-w-md px-4 py-10 font-sans text-ink-900">
-      <h1 className="text-2xl font-bold text-brand-700">Roadhouse</h1>
-      <p className="mt-2 text-gray-700">
-        Choose who you are. Real sign-in with your email and password comes in a later sprint.
-      </p>
+    <div className="min-h-screen bg-paper">
+      <main className="mx-auto max-w-md px-4 py-10 font-sans text-ink-900">
+        {/* Matches the app header's title. Anton has one weight, so no font-bold. */}
+        <h1 className="font-display text-3xl leading-tight tracking-wide text-brand-700 uppercase">
+          Roadhouse
+        </h1>
+        <p className="mt-2 text-gray-700">
+          Choose who you are. Real sign-in with your email and password comes in a later sprint.
+        </p>
 
-      <div className="mt-6">
-        {members.isPending && <Loading label="Loading the band…" />}
-        {members.isError && (
-          <ErrorMessage
-            message={errorMessage(members.error)}
-            onRetry={() => void members.refetch()}
-          />
-        )}
-        {members.isSuccess && <MemberChoices members={members.data.items} onChoose={choose} />}
-      </div>
-    </main>
+        <div className="mt-6">
+          {members.isPending && <Loading label="Loading the band…" />}
+          {members.isError && (
+            <ErrorMessage
+              message={errorMessage(members.error)}
+              onRetry={() => void members.refetch()}
+            />
+          )}
+          {members.isSuccess && <MemberChoices members={members.data.items} onChoose={choose} />}
+        </div>
+      </main>
+    </div>
   );
 }
 
