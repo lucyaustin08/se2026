@@ -7,6 +7,7 @@ Notable changes to Roadhouse, newest first.
 ### Added
 - Band leader: their own place in the user picker. They see every gig with its total pay, everyone's pay and venue contacts, and can change a member's pay.
 - Venue contacts are visible only to the manager and band leader.
+- The band leader can add, edit and book gigs and invite members, like the manager.
 - GitHub Codespaces setup: run the whole app in the browser with `bash scripts/dev.sh`, no Docker needed.
 - User picker: continue as the manager or as a band member (sprint 1 stand-in for login).
 - Gigs: list, detail, add a potential gig, edit it, and book it.

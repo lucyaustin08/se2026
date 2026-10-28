@@ -3,7 +3,7 @@ import { delay, http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
 import type { GigUpdate } from "../api/types";
-import { asManager, asSam, blueDoor } from "../test/fixtures";
+import { asCasey, asManager, blueDoor } from "../test/fixtures";
 import { errorBody, saveGig } from "../test/handlers";
 import { renderApp } from "../test/render";
 import { server } from "../test/server";
@@ -100,9 +100,11 @@ describe("edit gig page", () => {
     );
   });
 
-  it("tells a member only the manager can edit gigs", () => {
-    renderApp("/gigs/10/edit", { as: asSam });
+  it("tells a member only the manager or band leader can edit gigs", () => {
+    renderApp("/gigs/10/edit", { as: asCasey });
 
-    expect(screen.getByRole("heading", { level: 1, name: "Manager only" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Manager or band leader only" }),
+    ).toBeInTheDocument();
   });
 });

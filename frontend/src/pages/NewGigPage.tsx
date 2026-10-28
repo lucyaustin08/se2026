@@ -5,7 +5,7 @@ import { api } from "../api/client";
 import { errorMessage, unwrap } from "../api/errors";
 import type { GigCreate } from "../api/types";
 import { GigForm } from "../components/GigForm";
-import { useActingMember } from "../session";
+import { runsTheBand, useActingMember } from "../session";
 
 export function NewGigPage() {
   const member = useActingMember();
@@ -20,7 +20,7 @@ export function NewGigPage() {
     },
   });
 
-  if (!member.isManager) {
+  if (!runsTheBand(member)) {
     return <ManagerOnly action="add gigs" />;
   }
 
@@ -46,8 +46,8 @@ export function NewGigPage() {
 export function ManagerOnly({ action }: { action: string }) {
   return (
     <section>
-      <h1 className="text-2xl font-bold">Manager only</h1>
-      <p className="mt-2 text-gray-700">Only the band manager can {action}.</p>
+      <h1 className="text-2xl font-bold">Manager or band leader only</h1>
+      <p className="mt-2 text-gray-700">Only the band manager or band leader can {action}.</p>
       <Link to="/gigs" className="mt-4 inline-block text-brand-700 underline">
         Back to gigs
       </Link>
