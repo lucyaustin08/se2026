@@ -24,18 +24,23 @@ describe("scheduling page: your busy times", () => {
   });
 
   it("shows an error with a retry that works", async () => {
+    let failed = false;
     server.use(
-      http.get(
-        "*/api/v1/busy-times",
-        () => HttpResponse.json(errorBody("internal_error", "Something broke."), { status: 500 }),
-        { once: true },
-      ),
+      // Fail only this section's first request (the calendar asks for busy times too).
+      http.get("*/api/v1/busy-times", ({ request }) => {
+        if (failed || !new URL(request.url).searchParams.has("member_id")) return undefined;
+        failed = true;
+        return HttpResponse.json(errorBody("internal_error", "Something broke."), {
+          status: 500,
+        });
+      }),
     );
     const { user } = renderApp("/scheduling", { as: asRiley });
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Something broke.");
+    const region = await screen.findByRole("region", { name: "Your busy times" });
+    expect(await within(region).findByRole("alert")).toHaveTextContent("Something broke.");
 
-    await user.click(screen.getByRole("button", { name: "Try again" }));
+    await user.click(within(region).getByRole("button", { name: "Try again" }));
 
     expect(await within(mine()).findByText(/Tue, Nov 10, 2026/)).toBeInTheDocument();
   });

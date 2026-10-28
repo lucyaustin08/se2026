@@ -52,9 +52,15 @@ class GigRepository:
         sort: GigSort,
         page: int,
         page_size: int,
+        first_set_after: datetime | None = None,
+        first_set_before: datetime | None = None,
     ) -> tuple[list[Gig], int]:
         """Return one page of gigs matching every given filter, plus the total match count."""
         stmt = select(Gig)
+        if first_set_after is not None:
+            stmt = stmt.where(Gig.first_set_at >= first_set_after)
+        if first_set_before is not None:
+            stmt = stmt.where(Gig.first_set_at < first_set_before)
         if statuses is not None:
             stmt = stmt.where(Gig.status.in_(list(statuses)))
         if has_date is True:

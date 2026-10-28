@@ -42,12 +42,16 @@ describe("practices on the scheduling page", () => {
   });
 
   it("shows an error with a retry that works", async () => {
+    let failed = false;
     server.use(
-      http.get(
-        "*/api/v1/practices",
-        () => HttpResponse.json(errorBody("internal_error", "Something broke."), { status: 500 }),
-        { once: true },
-      ),
+      // Fail only this section's first request (the calendar asks with an end date too).
+      http.get("*/api/v1/practices", ({ request }) => {
+        if (failed || new URL(request.url).searchParams.has("starts_before")) return undefined;
+        failed = true;
+        return HttpResponse.json(errorBody("internal_error", "Something broke."), {
+          status: 500,
+        });
+      }),
     );
     const { user } = renderApp("/scheduling", { as: asRiley });
 

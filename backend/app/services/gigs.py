@@ -57,6 +57,8 @@ class GigService:
         sort: GigSort,
         page: int,
         page_size: int,
+        first_set_after: datetime | None = None,
+        first_set_before: datetime | None = None,
     ) -> GigPage:
         statuses: frozenset[GigStatus] | None
         member_slot: MemberSlotFilter | None
@@ -83,6 +85,8 @@ class GigService:
             sort=sort,
             page=page,
             page_size=page_size,
+            first_set_after=first_set_after,
+            first_set_before=first_set_before,
         )
         return GigPage(
             items=[self._to_list_item(actor, gig) for gig in gigs],

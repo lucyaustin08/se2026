@@ -203,3 +203,17 @@ def test_page_size_at_its_maximum(db: Session, make: Factory) -> None:
     page, total = search(db, page=1, page_size=MAX_PAGE_SIZE)
 
     assert (len(page), total) == (MAX_PAGE_SIZE, MAX_PAGE_SIZE + 1)
+
+
+def test_filters_by_first_set_range(db: Session, make: Factory) -> None:
+    gigs = make_dated_gigs(make, 4)
+    make.gig(venue_name="Undated")
+
+    found, total = search(
+        db,
+        first_set_after=BLUE_DOOR_FIRST_SET + timedelta(days=1),
+        first_set_before=BLUE_DOOR_FIRST_SET + timedelta(days=3),
+    )
+
+    assert [g.id for g in found] == [gigs[1].id, gigs[2].id]
+    assert total == 2
