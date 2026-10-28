@@ -17,6 +17,10 @@ class MemberRepository:
     def get(self, member_id: int) -> Member | None:
         return self._session.get(Member, member_id)
 
+    def get_by_email(self, email: str) -> Member | None:
+        """Emails are compared without regard to case, so one inbox can't sign up twice."""
+        return self._session.scalar(select(Member).where(func.lower(Member.email) == email.lower()))
+
     def search(
         self, *, q: str | None, sort: MemberSort, page: int, page_size: int
     ) -> tuple[list[Member], int]:

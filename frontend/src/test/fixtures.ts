@@ -1,4 +1,4 @@
-import type { GigDetail, GigListItem, MemberRead, SlotOut } from "../api/types";
+import type { GigDetail, GigListItem, MemberProfile, MemberRead, SlotOut } from "../api/types";
 import type { ActingMember } from "../session";
 
 export const managerMember: MemberRead = {
@@ -31,6 +31,27 @@ export const riley: MemberRead = {
 };
 
 export const allMembers = [managerMember, sam, casey, riley];
+
+function profileOf(
+  member: MemberRead,
+  phone: string | null,
+  secondary_role: MemberProfile["secondary_role"] = null,
+): MemberProfile {
+  return {
+    ...member,
+    email: `${member.name.split(" ")[0].toLowerCase()}@example.com`,
+    phone,
+    secondary_role,
+  };
+}
+
+/** Full profiles, as the member themselves, the manager or the band leader sees them. */
+export const allProfiles: MemberProfile[] = [
+  profileOf(managerMember, "555-0100"),
+  profileOf(sam, "555-0101", "bass"),
+  profileOf(casey, "555-0102"),
+  profileOf(riley, null),
+];
 
 export const asManager: ActingMember = {
   id: 1,

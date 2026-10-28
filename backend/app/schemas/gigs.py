@@ -24,16 +24,12 @@ from app.models.gig import (
     DEFAULT_PERFORMANCE_MINUTES,
     DEFAULT_SOUNDCHECK_OFFSET_MINUTES,
 )
+from app.schemas.fields import Email, Phone
 from app.schemas.members import MemberSummary
 from app.schemas.pagination import Page
 
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
 Address = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=300)]
-Phone = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=40)]
-Email = Annotated[
-    str,
-    StringConstraints(strip_whitespace=True, max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$"),
-]
 Notes = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1000)]
 # Any time zone is accepted on input, and it's converted to UTC immediately, so responses
 # and the database only ever see UTC.

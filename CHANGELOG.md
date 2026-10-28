@@ -5,6 +5,7 @@ Notable changes to Roadhouse, newest first.
 ## Unreleased
 
 ### Added
+- Profile tab: everyone sees and edits their own name, phone, email and instruments. Roles are shown but fixed. Phone and email are visible only to that member, the manager and the band leader.
 - Band leader: their own place in the user picker. They see every gig with its total pay, everyone's pay and venue contacts, and can change a member's pay.
 - Venue contacts are visible only to the manager and band leader.
 - The band leader can add, edit and book gigs and invite members, like the manager.

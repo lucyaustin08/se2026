@@ -24,4 +24,5 @@ export const NAV_ITEMS: readonly NavItem[] = [
   },
   { path: "/members", label: "Members", description: "Who's in the band and what they play." },
   { path: "/booking", label: "Booking", description: "Venues and potential gigs." },
+  { path: "/profile", label: "Profile", description: "Your details and instruments." },
 ];
