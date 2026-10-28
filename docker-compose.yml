@@ -1,5 +1,8 @@
 # Run the whole app: docker compose up --build
 # Then open http://localhost:8080 (app) or http://localhost:8000/docs (API docs).
+#
+# First, copy .env.example to .env next to this file and set POSTGRES_PASSWORD. Never commit
+# the .env file.
 
 services:
   backend:
@@ -7,13 +10,12 @@ services:
       context: ./backend
       dockerfile: ../infra/docker/backend.Dockerfile
     environment:
-      DATABASE_URL: sqlite:////data/roadhouse.db
+      DATABASE_URL: postgresql+psycopg://roadhouse:${POSTGRES_PASSWORD:?Copy .env.example to .env and set POSTGRES_PASSWORD}@db:5432/roadhouse
       # Adds a made-up sample band on first start, for the sprint 1 user picker.
       SEED_SAMPLE_DATA: "true"
-      # For PostgreSQL, use the db service below instead:
-      # DATABASE_URL: postgresql+psycopg://roadhouse:${POSTGRES_PASSWORD}@db:5432/roadhouse
-    volumes:
-      - roadhouse-data:/data
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "8000:8000"
     networks:
@@ -52,27 +54,25 @@ services:
       start_period: 5s
       retries: 5
 
-  # PostgreSQL, for when the team moves off SQLite. Set POSTGRES_PASSWORD in a .env file
-  # next to this compose file (never commit it), and add psycopg to the backend.
-  # db:
-  #   image: postgres:17
-  #   environment:
-  #     POSTGRES_USER: roadhouse
-  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-  #     POSTGRES_DB: roadhouse
-  #   volumes:
-  #     - postgres-data:/var/lib/postgresql/data
-  #   networks:
-  #     - roadhouse
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -U roadhouse"]
-  #     interval: 10s
-  #     timeout: 3s
-  #     retries: 5
+  # PostgreSQL. It isn't published on a host port: only the backend talks to it.
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: roadhouse
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Copy .env.example to .env and set POSTGRES_PASSWORD}
+      POSTGRES_DB: roadhouse
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - roadhouse
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U roadhouse -d roadhouse"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
 volumes:
-  roadhouse-data:
-  # postgres-data:
+  postgres-data:
 
 networks:
   roadhouse:

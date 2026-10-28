@@ -1,11 +1,10 @@
-from pathlib import Path
-
 import pytest
-from sqlalchemy import create_engine, func, select
+from fastapi import FastAPI
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app import seed
-from app.models import Base, Gig, Member
+from app.models import Gig, Member
 
 
 def test_seeds_a_manager_a_leader_and_a_member_for_every_role(db: Session) -> None:
@@ -43,12 +42,12 @@ def test_main_skips_unless_enabled(
 
 
 def test_main_seeds_the_configured_database(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    monkeypatch: pytest.MonkeyPatch,
+    app: FastAPI,
+    database_url: str,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
-    url = f"sqlite:///{tmp_path / 'seed.db'}"
-    engine = create_engine(url)
-    Base.metadata.create_all(engine)
-    monkeypatch.setenv("DATABASE_URL", url)
+    monkeypatch.setenv("DATABASE_URL", database_url)
     monkeypatch.setenv("SEED_SAMPLE_DATA", "true")
 
     seed.main()
@@ -57,6 +56,5 @@ def test_main_seeds_the_configured_database(
     out = capsys.readouterr().out
     assert "Added the sample band." in out
     assert "Members already exist" in out
-    with Session(engine) as session:
+    with Session(app.state.engine) as session:
         assert session.scalar(select(func.count()).select_from(Member)) == 6
-    engine.dispose()

@@ -14,13 +14,17 @@ FastAPI, SQLAlchemy 2 and Alembic, managed with `uv`. The full stack and layer r
 
 ## Running locally with uv
 
+The app uses PostgreSQL. In a codespace, `bash scripts/dev.sh` (from the repository root) starts it and runs everything below for you. To do it by hand:
+
 ```bash
+bash scripts/start-postgres.sh  # in a codespace: start PostgreSQL and create the database
 cd backend
-uv sync                      # create .venv and install everything from uv.lock
-cp .env.example .env         # then export the variables, or set DATABASE_URL yourself
-uv run alembic upgrade head  # apply migrations
+uv sync                         # create .venv and install everything from uv.lock
+uv run alembic upgrade head     # apply migrations
 uv run uvicorn app.main:app --reload
 ```
+
+Anywhere else, run PostgreSQL yourself and set `DATABASE_URL` (see `.env.example`).
 
 The API is at http://localhost:8000/api/v1 and interactive docs at http://localhost:8000/docs.
 
@@ -32,6 +36,8 @@ uv run ruff format --check .
 uv run mypy
 uv run pytest --cov=app --cov-report=term-missing:skip-covered --cov-report=html --cov-fail-under=80
 ```
+
+Tests need PostgreSQL running (in a codespace, `bash scripts/start-postgres.sh`). They use their own `roadhouse_test` database, which they create if it's missing and empty after every test, so they never touch your development data. Set `TEST_DATABASE_URL` to use a different one.
 
 ## Running uv through Docker
 
