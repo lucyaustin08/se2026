@@ -536,6 +536,17 @@ They cover happy paths only, per the testing standard. Refusals and edge cases s
 
 ---
 
+## 2026-10-21 — Design foundation: "Gig Poster" look, fonts stored in the repo
+
+**Decision:** The team picked the "Gig Poster" direction from three mood boards. Its colors, fonts and status colors are defined once in `frontend/src/styles/index.css`. The existing color names (`brand-*`, `gray-*`, `ink-900`) now point at the new palette, so current pages change without edits. New code uses the named colors (`paper`, `ink`, `poster-red`, `mustard`, `navy`, `status-*`) and `font-display` for headings.
+
+The fonts (Anton for headings, Archivo for text) are stored as files in `frontend/public/fonts`, with their SIL Open Font License files.
+
+**Alternatives considered:**
+- Font packages such as `@fontsource/anton`. Not taken: they add dependencies outside the stack contract, which needs instructor approval. The font files are the same either way.
+- A Google Fonts link. Not taken: the app would depend on an outside service every time it loads.
+
+**Still to do:** the paper background, square corners and headings in Anton, when the shared layout and components are restyled.
 ## 2026-10-27 — A member is busy from soundcheck to the end
 
 **Decision:** For the overlap rule, a member on a gig is busy from **soundcheck to the end**, not from load-in. The product owner said every member must be able to be there "by soundcheck at the latest."
