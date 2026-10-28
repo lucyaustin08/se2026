@@ -437,6 +437,8 @@ Recorded as given, for reference:
 
 ## 2026-10-13 — Pay: the gig total and each member's share
 
+> **Updated 2026-10-28:** the band leader also sees the total and everyone's pay, and can change a member's pay. See "The band leader's permissions."
+
 **Decision:** The gig keeps its total (`pay_cents`), which only the manager sees. Each slot has the pay for that member, set when inviting or changed later with `PATCH /gigs/{id}/slots/{slot_id}` (there's no screen for changing it yet). A member sees only their own pay.
 
 **Alternatives considered:**
@@ -543,3 +545,28 @@ They cover happy paths only, per the testing standard. Refusals and edge cases s
 **Alternatives considered:**
 - Keeping load-in to end (the 2026-10-13 rule). Replaced: the product owner only requires members to arrive by soundcheck.
 - Using a different window for "can accept two gigs" and "is free for a gig." Not taken: the product owner gave one rule, and two windows would confuse members and the manager.
+
+---
+
+## 2026-10-28 — The band leader's permissions
+
+**Decision:** The manager and the band leader are two different people (confirmed by the instructor). Both "run the band," and one check, `runs_the_band()` in `app/services/permissions.py`, decides what they can do beyond an ordinary member. The frontend mirrors it with `runsTheBand()` in `src/session.tsx` to decide what to show, but the server enforces every rule.
+
+What the band leader can do now:
+- See every gig in full, like the manager: pending gigs they aren't invited to, and booked gigs they aren't on, with no "Not assigned" rows.
+- See the gig's total pay and everyone's pay. The product owner said the total is "viewable by the band leader" and that the band leader decides each member's pay.
+- Change a member's pay (`PATCH /gigs/{id}/slots/{slot_id}`). A refusal is `403 manager_or_band_leader_only`. There's still no screen for changing pay, so this is API only for now.
+- See venue contacts. Per the product owner's sprint 1 feedback, contacts are private to the people managing the booking. Ordinary members, even on the gig, now get an empty list and no Contacts section.
+
+What stays with the manager only: adding, editing, booking and cancelling gigs, and sending invitations (`403 manager_only`).
+
+The band leader still plays: they have their own slot on a gig and accept or decline their own invitation.
+
+To come with their features, per the team's follow-up to the product owner: seeing everyone's availability, revoking an acceptance and inviting a backup, scheduling practices, and seeing member emails. Each should use `runs_the_band()`.
+
+The user picker has a "Continue as band leader" section. A choice saved in `sessionStorage` before this change has no `isBandLeader`, so it's ignored and the person picks again.
+
+**Alternatives considered:**
+- Treating the band leader as an ordinary member (the sprint 1 behavior). Replaced: the product owner gives the band leader pay and contact access.
+- Letting the band leader do everything the manager does. Not taken: the product owner and instructor describe two roles, and booking stays with the manager.
+- Checking `is_manager or is_band_leader` at each call site. Not taken: the same rule will be needed by availability, revoking and practices, and copies drift apart.

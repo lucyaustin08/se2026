@@ -33,6 +33,7 @@ from app.schemas.gigs import (
 from app.schemas.members import MemberSummary
 from app.services.booking import missing_for_booking
 from app.services.lineup import ROLE_LABELS, ROLE_ORDER, lineup_size
+from app.services.permissions import require_runs_the_band, runs_the_band
 
 # Slots that let a member see a potential gig: they've been asked, or they said yes.
 SLOT_STATUSES_THAT_SHOW_A_GIG = frozenset({SlotStatus.INVITED, SlotStatus.ACCEPTED})
@@ -59,7 +60,7 @@ class GigService:
     ) -> GigPage:
         statuses: frozenset[GigStatus] | None
         member_slot: MemberSlotFilter | None
-        if actor.is_manager:
+        if runs_the_band(actor):
             statuses = None if status is None else frozenset({status})
             member_slot = None
         else:
@@ -168,7 +169,8 @@ class GigService:
     def set_slot_pay(
         self, actor: Member, gig_id: int, slot_id: int, pay_cents: int | None
     ) -> GigDetail:
-        _require_manager(actor, "set pay")
+        # The band leader decides each member's pay, and the manager sets it when inviting.
+        require_runs_the_band(actor, "set pay")
         gig = self._get_or_404(gig_id)
         slot = _slot_or_404(gig, slot_id)
         slot.pay_cents = pay_cents
@@ -310,7 +312,7 @@ class GigService:
         return gig, slot
 
     def _require_can_view(self, actor: Member, gig: Gig) -> None:
-        if actor.is_manager:
+        if runs_the_band(actor):
             return
         slot = gig.slot_for(actor.id)
         if gig.status is GigStatus.POTENTIAL:
@@ -333,7 +335,7 @@ class GigService:
 
     def _to_list_item(self, actor: Member, gig: Gig) -> GigListItem:
         slot = None if actor.is_manager else gig.slot_for(actor.id)
-        restricted = not actor.is_manager and (
+        restricted = not runs_the_band(actor) and (
             slot is None or slot.status not in SLOT_STATUSES_THAT_SHOW_A_GIG
         )
         return GigListItem(
@@ -347,7 +349,9 @@ class GigService:
         )
 
     def _to_detail(self, actor: Member, gig: Gig) -> GigDetail:
+        # The manager doesn't play, so has no slot. The band leader plays and does.
         own_slot = None if actor.is_manager else gig.slot_for(actor.id)
+        sees_everything = runs_the_band(actor)
         ordered = sorted(gig.slots, key=lambda slot: ROLE_ORDER.index(slot.role))
         return GigDetail(
             id=gig.id,
@@ -362,19 +366,21 @@ class GigService:
             venue_name=gig.venue_name,
             venue_address=gig.venue_address,
             lineup_size=lineup_size(len(gig.slots)),
-            # Only the manager sees the gig total. Members see only their own slot's pay.
-            pay_cents=gig.pay_cents if actor.is_manager else None,
+            # The manager and band leader see the gig total and everyone's pay. Other members
+            # see only their own slot's pay.
+            pay_cents=gig.pay_cents if sees_everything else None,
             slots=[
                 SlotOut(
                     id=slot.id,
                     role=slot.role,
                     status=slot.status,
                     member=MemberSummary.model_validate(slot.member) if slot.member else None,
-                    pay_cents=(slot.pay_cents if actor.is_manager or slot is own_slot else None),
+                    pay_cents=(slot.pay_cents if sees_everything or slot is own_slot else None),
                     responded_at=slot.responded_at,
                 )
                 for slot in ordered
             ],
+            # Venue contacts stay private to the people managing the booking.
             contacts=[
                 ContactOut(
                     id=contact.id,
@@ -385,9 +391,11 @@ class GigService:
                     notes=contact.notes,
                 )
                 for contact in gig.contacts
-            ],
+            ]
+            if sees_everything
+            else [],
             my_slot_id=own_slot.id if own_slot else None,
-            missing_for_booking=missing_for_booking(gig) if actor.is_manager else [],
+            missing_for_booking=missing_for_booking(gig) if sees_everything else [],
             created_at=gig.created_at,
         )
 

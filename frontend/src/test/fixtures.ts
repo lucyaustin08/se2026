@@ -32,9 +32,31 @@ export const riley: MemberRead = {
 
 export const allMembers = [managerMember, sam, casey, riley];
 
-export const asManager: ActingMember = { id: 1, name: "Jordan Avery", isManager: true };
-export const asSam: ActingMember = { id: 2, name: "Sam Rivera", isManager: false };
-export const asRiley: ActingMember = { id: 4, name: "Riley Chen", isManager: false };
+export const asManager: ActingMember = {
+  id: 1,
+  name: "Jordan Avery",
+  isManager: true,
+  isBandLeader: false,
+};
+/** Sam is the band leader. */
+export const asSam: ActingMember = {
+  id: 2,
+  name: "Sam Rivera",
+  isManager: false,
+  isBandLeader: true,
+};
+export const asCasey: ActingMember = {
+  id: 3,
+  name: "Casey Morgan",
+  isManager: false,
+  isBandLeader: false,
+};
+export const asRiley: ActingMember = {
+  id: 4,
+  name: "Riley Chen",
+  isManager: false,
+  isBandLeader: false,
+};
 
 function slot(
   id: number,
@@ -87,15 +109,19 @@ export const blueDoor: GigDetail = {
   created_at: "2026-10-01T12:00:00Z",
 };
 
-/** The same gig as Sam sees it: no total, and only his own pay. */
-export const blueDoorForSam: GigDetail = {
+/** The same gig as Sam, the band leader, sees it: everything, plus his own slot. */
+export const blueDoorForSam: GigDetail = { ...blueDoor, my_slot_id: 101 };
+
+/** The same gig as Casey, an ordinary member, sees it: no total, no contacts, only her pay. */
+export const blueDoorForCasey: GigDetail = {
   ...blueDoor,
   pay_cents: null,
   slots: [
-    slot(101, "rhythm_guitar_vocals", sam, "accepted", 20000),
-    slot(102, "lead_guitar", casey, "accepted", null),
+    slot(101, "rhythm_guitar_vocals", sam, "accepted", null),
+    slot(102, "lead_guitar", casey, "accepted", 20000),
   ],
-  my_slot_id: 101,
+  contacts: [],
+  my_slot_id: 102,
 };
 
 /** A potential full-band gig at Hub City Tap with invitations in every state. */
