@@ -93,7 +93,10 @@ def book_gig(gig_id: int, actor: ActingMember, service: GigServiceDep) -> GigDet
 def invite_to_slot(
     gig_id: int, slot_id: int, body: InvitationIn, actor: ActingMember, service: GigServiceDep
 ) -> GigDetail:
-    """Invite a member to fill a slot (manager only). Replaces a pending or declined invite."""
+    """Invite a member to fill a slot (manager or band leader).
+
+    Replaces a pending or declined invitation.
+    """
     return service.invite(actor, gig_id, slot_id, body)
 
 
@@ -105,7 +108,7 @@ def invite_to_slot(
 def set_slot_pay(
     gig_id: int, slot_id: int, body: SlotPayIn, actor: ActingMember, service: GigServiceDep
 ) -> GigDetail:
-    """Change what the member in this slot is paid (manager only)."""
+    """Change what the member in this slot is paid (manager or band leader)."""
     return service.set_slot_pay(actor, gig_id, slot_id, body.pay_cents)
 
 

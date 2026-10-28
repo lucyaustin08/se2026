@@ -80,29 +80,54 @@ def test_manager_can_create_a_gig_with_roles_and_contacts(
         lambda s, m, g: s.update_gig(m, g.id, GigUpdate(venue_name="X")),
         lambda s, m, g: s.book_gig(m, g.id),
         lambda s, m, g: s.invite(m, g.id, g.slots[0].id, InvitationIn(member_id=m.id)),
+        lambda s, m, g: s.set_slot_pay(m, g.id, g.slots[0].id, 100),
     ],
-    ids=["create", "edit", "book", "invite"],
+    ids=["create", "edit", "book", "invite", "set pay"],
 )
-@pytest.mark.parametrize("is_band_leader", [False, True], ids=["member", "band leader"])
-def test_only_the_manager_can_do_manager_actions(
-    service: GigService, make: Factory, db: Session, action: Any, is_band_leader: bool
+def test_ordinary_members_cannot_run_gigs(
+    service: GigService, make: Factory, db: Session, action: Any
 ) -> None:
     gig = make.bookable_gig()
-    member = make.member(leader=is_band_leader)
 
     with pytest.raises(PermissionDeniedError) as error:
-        action(service, member, gig)
-
-    assert error.value.code == "manager_only"
-
-
-def test_an_ordinary_member_cannot_set_pay(service: GigService, make: Factory) -> None:
-    gig = make.bookable_gig()
-
-    with pytest.raises(PermissionDeniedError) as error:
-        service.set_slot_pay(make.member(), gig.id, gig.slots[0].id, 100)
+        action(service, make.member(), gig)
 
     assert error.value.code == "manager_or_band_leader_only"
+
+
+# The band leader runs gigs too: they can add, edit, book and invite, as well as play.
+
+
+def test_the_band_leader_can_add_a_gig(service: GigService, make: Factory) -> None:
+    detail = service.create_gig(make.leader(), GigCreate(venue_name="Hub City Tap"))
+
+    assert (detail.venue_name, detail.status) == ("Hub City Tap", GigStatus.POTENTIAL)
+
+
+def test_the_band_leader_can_edit_a_gig(service: GigService, make: Factory, db: Session) -> None:
+    gig = make.gig(venue_name="Old name")
+
+    service.update_gig(make.leader(), gig.id, GigUpdate(venue_name="New name"))
+
+    assert stored(db, gig).venue_name == "New name"
+
+
+def test_the_band_leader_can_book_a_gig(service: GigService, make: Factory) -> None:
+    leader = make.leader()
+    gig = make.bookable_gig(leader=leader)
+
+    assert service.book_gig(leader, gig.id).status is GigStatus.BOOKED
+
+
+def test_the_band_leader_can_invite_a_member(service: GigService, make: Factory) -> None:
+    gig = make.gig()
+    slot = make.slot(gig, Role.BASS)
+    riley = make.member()
+
+    detail = service.invite(make.leader(), gig.id, slot.id, InvitationIn(member_id=riley.id))
+
+    assert detail.slots[0].status is SlotStatus.INVITED
+    assert detail.slots[0].member is not None and detail.slots[0].member.id == riley.id
 
 
 # ---- Booking ----------------------------------------------------------------------------------

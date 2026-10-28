@@ -110,7 +110,7 @@ describe("login page", () => {
     expect(screen.getByText(/Using Roadhouse as/)).toHaveTextContent(
       "Using Roadhouse as Sam Rivera (band leader)",
     );
-    expect(screen.queryByRole("link", { name: "Add gig" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Add gig" })).toBeInTheDocument();
     expect(getActingMember()).toEqual({
       id: sam.id,
       name: "Sam Rivera",

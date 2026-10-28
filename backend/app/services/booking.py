@@ -1,4 +1,4 @@
-"""What a gig needs before the manager can book it."""
+"""What a gig needs before the manager or band leader can book it."""
 
 from app.models.enums import SlotStatus
 from app.models.gig import Gig

@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { delay, http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
@@ -111,7 +111,7 @@ describe("gig detail page", () => {
     expect(screen.queryByRole("button", { name: "Book gig" })).not.toBeInTheDocument();
   });
 
-  it("shows the band leader the total, everyone's pay and the contacts, but no manager actions", async () => {
+  it("shows the band leader everything, with the manager's lineup and edit tools", async () => {
     server.use(http.get("*/api/v1/gigs/:gigId", () => HttpResponse.json(blueDoorForSam)));
 
     renderApp("/gigs/10", { as: asSam });
@@ -120,14 +120,12 @@ describe("gig detail page", () => {
     expect(invitation).toHaveTextContent("Your pay: $200.00");
 
     expect(screen.getByRole("region", { name: "Details" })).toHaveTextContent("Total pay$400.00");
-    expect(screen.getByRole("region", { name: "Lineup" })).toHaveTextContent(
-      "Lead guitar: Casey Morgan · $200.00",
-    );
+    const lineup = screen.getByRole("region", { name: "Lineup" });
+    await waitFor(() => expect(lineup).toHaveTextContent("Casey Morgan · Accepted · $200.00"));
     expect(screen.getByRole("region", { name: "Contacts" })).toHaveTextContent(
       "Venue: Pat Lee · 555-0142",
     );
-    expect(screen.queryByRole("link", { name: "Edit details" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Book gig" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Edit details" })).toBeInTheDocument();
   });
 
   it("lets an invited member accept", async () => {

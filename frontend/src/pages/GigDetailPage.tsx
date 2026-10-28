@@ -79,7 +79,7 @@ function GigDetails({ gig }: { gig: GigDetail }) {
         <span className="rounded border border-gray-400 px-2 py-0.5 text-sm font-medium">
           {GIG_STATUS_LABELS[gig.status]}
         </span>
-        {member.isManager && (
+        {runsTheBand(member) && (
           <Link to={`/gigs/${gig.id}/edit`} className="text-brand-700 underline">
             Edit details
           </Link>
@@ -152,11 +152,11 @@ function GigDetails({ gig }: { gig: GigDetail }) {
         </h2>
         {gig.slots.length === 0 ? (
           <p className="mt-1 text-gray-700">
-            {member.isManager
+            {runsTheBand(member)
               ? "No roles yet. Choose the roles this gig needs under Edit details."
               : "No roles yet."}
           </p>
-        ) : member.isManager ? (
+        ) : runsTheBand(member) ? (
           <ManagerLineup gig={gig} />
         ) : (
           <ul className="mt-2 space-y-1">
@@ -164,17 +164,13 @@ function GigDetails({ gig }: { gig: GigDetail }) {
               <li key={slot.id}>
                 <span className="font-medium">{ROLE_LABELS[slot.role]}:</span>{" "}
                 {slot.member && slot.status === "accepted" ? slot.member.name : "Not confirmed yet"}
-                {/* The band leader sees everyone's pay. Other members see only their own. */}
-                {runsTheBand(member) &&
-                  slot.pay_cents !== null &&
-                  ` · ${formatMoney(slot.pay_cents)}`}
               </li>
             ))}
           </ul>
         )}
       </section>
 
-      {member.isManager && gig.status === "potential" && <BookingPanel gig={gig} />}
+      {runsTheBand(member) && gig.status === "potential" && <BookingPanel gig={gig} />}
     </>
   );
 }

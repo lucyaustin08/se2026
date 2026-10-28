@@ -96,10 +96,10 @@ class GigService:
         self._require_can_view(actor, gig)
         return self._to_detail(actor, gig)
 
-    # ---- Manager: creating and editing ------------------------------------------------------
+    # ---- Manager and band leader: creating and editing -------------------------------------------
 
     def create_gig(self, actor: Member, data: GigCreate) -> GigDetail:
-        _require_manager(actor, "add gigs")
+        require_runs_the_band(actor, "add gigs")
         gig = Gig(
             status=GigStatus.POTENTIAL,
             first_set_at=data.first_set_at,
@@ -117,12 +117,12 @@ class GigService:
         return self._to_detail(actor, gig)
 
     def update_gig(self, actor: Member, gig_id: int, data: GigUpdate) -> GigDetail:
-        _require_manager(actor, "edit gigs")
+        require_runs_the_band(actor, "edit gigs")
         gig = self._get_or_404(gig_id)
         return self._in_transaction(lambda: self._apply_update(actor, gig, data))
 
     def book_gig(self, actor: Member, gig_id: int) -> GigDetail:
-        _require_manager(actor, "book gigs")
+        require_runs_the_band(actor, "book gigs")
         gig = self._get_or_404(gig_id)
         _require_potential(gig)
         _require_complete(gig, "This gig can't be booked until it has:")
@@ -130,10 +130,10 @@ class GigService:
         self._session.commit()
         return self._to_detail(actor, gig)
 
-    # ---- Manager: invitations and pay --------------------------------------------------------
+    # ---- Manager and band leader: invitations and pay --------------------------------------------
 
     def invite(self, actor: Member, gig_id: int, slot_id: int, data: InvitationIn) -> GigDetail:
-        _require_manager(actor, "invite members")
+        require_runs_the_band(actor, "invite members")
         gig = self._get_or_404(gig_id)
         slot = _slot_or_404(gig, slot_id)
         _require_potential(gig)
@@ -398,11 +398,6 @@ class GigService:
             missing_for_booking=missing_for_booking(gig) if sees_everything else [],
             created_at=gig.created_at,
         )
-
-
-def _require_manager(actor: Member, action: str) -> None:
-    if not actor.is_manager:
-        raise PermissionDeniedError(f"Only the band manager can {action}.", code="manager_only")
 
 
 def _require_potential(gig: Gig) -> None:
