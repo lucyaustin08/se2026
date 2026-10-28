@@ -4,7 +4,12 @@ import {
   formatDate,
   formatMoney,
   formatRange,
+  formatClockTime,
+  formatPlainDate,
   formatTime,
+  formatWeekdays,
+  formatWeeklyDates,
+  formatWeeklyTimes,
   localInputsToIso,
   toDateInputValue,
   toTimeInputValue,
@@ -45,5 +50,43 @@ describe("time ranges", () => {
 describe("money", () => {
   it("formats cents as dollars", () => {
     expect(formatMoney(40050)).toBe("$400.50");
+  });
+});
+
+describe("weekly busy times", () => {
+  it("names common sets of days in a word, and lists the rest Monday first", () => {
+    expect(formatWeekdays([1, 2, 3, 4, 5, 6, 7])).toBe("Every day");
+    expect(formatWeekdays([1, 2, 3, 4, 5])).toBe("Weekdays");
+    expect(formatWeekdays([6, 7])).toBe("Weekends");
+    expect(formatWeekdays([7, 2, 4])).toBe("Tue, Thu, Sun");
+  });
+
+  it("shows the API's clock times and dates as written, with no time zone shift", () => {
+    expect(formatClockTime("08:00:00")).toBe("8:00 AM");
+    expect(formatClockTime("18:30:00")).toBe("6:30 PM");
+    // Read as midnight UTC, this would be the day before in New York.
+    expect(formatPlainDate("2026-11-01")).toBe("Sun, Nov 1, 2026");
+  });
+
+  it("says when a weekly busy time runs past midnight", () => {
+    expect(
+      formatWeeklyTimes({
+        weekdays: [1, 2, 3, 4, 5],
+        start_time: "08:00:00",
+        end_time: "17:00:00",
+      }),
+    ).toBe("Weekdays, 8:00 AM – 5:00 PM");
+    expect(formatWeeklyTimes({ weekdays: [6], start_time: "22:00:00", end_time: "02:00:00" })).toBe(
+      "Sat, 10:00 PM – 2:00 AM the next day",
+    );
+  });
+
+  it("gives the dates it applies between, or just the first when it has no end", () => {
+    expect(formatWeeklyDates({ starts_on: "2026-11-01", ends_on: null })).toBe(
+      "Starting Sun, Nov 1, 2026",
+    );
+    expect(formatWeeklyDates({ starts_on: "2026-11-01", ends_on: "2026-12-31" })).toBe(
+      "Sun, Nov 1, 2026 to Thu, Dec 31, 2026",
+    );
   });
 });

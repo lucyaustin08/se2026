@@ -1,6 +1,6 @@
 """SQLAlchemy models. Import every model module here so Alembic can see it."""
 
-from app.models.availability import BusyTime
+from app.models.availability import BusyTime, RecurringBusyTime
 from app.models.base import Base
 from app.models.enums import (
     ContactLabel,
@@ -27,6 +27,7 @@ __all__ = [
     "Member",
     "Practice",
     "PracticeInvitation",
+    "RecurringBusyTime",
     "Role",
     "SlotStatus",
 ]

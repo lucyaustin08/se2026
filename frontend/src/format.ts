@@ -1,4 +1,11 @@
-import type { ContactLabel, GigStatus, LineupSize, Role, SlotStatus } from "./api/types";
+import type {
+  ContactLabel,
+  GigStatus,
+  LineupSize,
+  RecurringBusyTimeIn,
+  Role,
+  SlotStatus,
+} from "./api/types";
 
 export const ROLE_LABELS: Record<Role, string> = {
   rhythm_guitar_vocals: "Rhythm guitar / vocals",
@@ -100,4 +107,59 @@ export function formatRange(startIso: string, endIso: string): string {
     return `${start} – ${formatTime(endIso)}`;
   }
   return `${start} – ${formatDate(endIso)}, ${formatTime(endIso)}`;
+}
+
+/** Days of the week as the API numbers them (ISO): 1 is Monday, 7 is Sunday. */
+export const ISO_WEEKDAYS: readonly { day: number; short: string; long: string }[] = [
+  { day: 1, short: "Mon", long: "Monday" },
+  { day: 2, short: "Tue", long: "Tuesday" },
+  { day: 3, short: "Wed", long: "Wednesday" },
+  { day: 4, short: "Thu", long: "Thursday" },
+  { day: 5, short: "Fri", long: "Friday" },
+  { day: 6, short: "Sat", long: "Saturday" },
+  { day: 7, short: "Sun", long: "Sunday" },
+];
+
+/** "Every day", "Weekdays", "Weekends", or the days themselves: "Tue, Thu". */
+export function formatWeekdays(days: number[]): string {
+  const chosen = ISO_WEEKDAYS.filter(({ day }) => days.includes(day));
+  const key = chosen.map(({ day }) => day).join(",");
+  if (key === "1,2,3,4,5,6,7") return "Every day";
+  if (key === "1,2,3,4,5") return "Weekdays";
+  if (key === "6,7") return "Weekends";
+  return chosen.map(({ short }) => short).join(", ");
+}
+
+/** "6:00 PM" from a clock time the API sends as "18:00:00". */
+export function formatClockTime(clock: string): string {
+  const [hours, minutes] = clock.split(":").map(Number);
+  return formatTime(new Date(2000, 0, 1, hours, minutes).toISOString());
+}
+
+/** "Sun, Nov 1, 2026" from a date the API sends as "2026-11-01". */
+export function formatPlainDate(day: string): string {
+  // Read it as a local date: "2026-11-01" on its own would be midnight UTC, the day before here.
+  return dateFormat.format(new Date(`${day}T00:00`));
+}
+
+type WeeklyTimes = Pick<RecurringBusyTimeIn, "weekdays" | "start_time" | "end_time">;
+
+/**
+ * When a weekly busy time happens: "Weekdays, 8:00 AM – 5:00 PM". One that runs past midnight
+ * says so: "Sat, 10:00 PM – 2:00 AM the next day".
+ */
+export function formatWeeklyTimes(rule: WeeklyTimes): string {
+  // "HH:MM:SS" strings sort the same way as the times they name.
+  const overnight = rule.end_time <= rule.start_time;
+  const times = `${formatClockTime(rule.start_time)} – ${formatClockTime(rule.end_time)}`;
+  return `${formatWeekdays(rule.weekdays)}, ${times}${overnight ? " the next day" : ""}`;
+}
+
+/** "Starting Sun, Nov 1, 2026" or "Sun, Nov 1, 2026 to Thu, Dec 31, 2026". */
+export function formatWeeklyDates(
+  rule: Pick<RecurringBusyTimeIn, "starts_on" | "ends_on">,
+): string {
+  return rule.ends_on
+    ? `${formatPlainDate(rule.starts_on)} to ${formatPlainDate(rule.ends_on)}`
+    : `Starting ${formatPlainDate(rule.starts_on)}`;
 }

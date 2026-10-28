@@ -8,7 +8,9 @@ as "on the same day as a gig". Everyone in the band is in one time zone (see DEC
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
-BAND_TIME_ZONE = ZoneInfo("America/New_York")
+from app.core.config import BAND_TIME_ZONE_NAME
+
+BAND_TIME_ZONE = ZoneInfo(BAND_TIME_ZONE_NAME)
 
 
 def band_date(moment: datetime) -> date:

@@ -45,3 +45,69 @@ test.describe("Story: a member marks when they're busy, and the manager sees it 
     await expect(invite.getByRole("option", { name: "Riley Chen · Busy" })).toHaveCount(1);
   });
 });
+
+// A unique week per run, in 2031, clear of the other stories' dates.
+const weekStart = new Date(
+  Date.UTC(2031, 0, 5) + (Math.floor(stamp / 60_000) % 300) * 7 * 86_400_000,
+);
+const firstDay = weekStart.toISOString().slice(0, 10);
+const lastDay = new Date(weekStart.getTime() + 6 * 86_400_000).toISOString().slice(0, 10);
+const shortDate = new Intl.DateTimeFormat("en-US", {
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  timeZone: "UTC",
+});
+const dates = `${shortDate.format(weekStart)} to ${shortDate.format(new Date(lastDay))}`;
+
+test.describe("Story: a member marks a time they're busy every week", () => {
+  test("a member adds a weekly busy time and sees it on the calendar", async ({ page }) => {
+    await continueAs(page, "Riley Chen");
+    await page
+      .getByRole("navigation", { name: "Main" })
+      .getByRole("link", { name: "Scheduling" })
+      .click();
+    await page.getByRole("button", { name: "Add busy time" }).click();
+    const dialog = page.getByRole("dialog", { name: "Add busy time" });
+    await dialog.getByRole("radio", { name: "Repeats weekly" }).check();
+    for (const day of [
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+      "Sunday",
+    ]) {
+      await dialog.getByRole("checkbox", { name: day }).check();
+    }
+    await dialog.getByLabel("Start time").fill("07:00");
+    await dialog.getByLabel("End time").fill("08:00");
+    await dialog.getByLabel("First date").fill(firstDay);
+    await dialog.getByLabel("Last date").fill(lastDay);
+    await dialog.getByRole("button", { name: "Add busy time" }).click();
+    await expect(dialog).toHaveCount(0);
+
+    const row = page
+      .getByRole("region", { name: "Your busy times" })
+      .getByRole("listitem")
+      .filter({ hasText: dates });
+    await expect(row).toContainText("Every day, 7:00 AM – 8:00 AM");
+
+    // The server works out each day, so it shows on the calendar on the last day too.
+    await page.goto(`/scheduling?date=${lastDay}`);
+    await expect(page.getByText("Riley Chen is busy, 7:00 AM – 8:00 AM, every week")).toBeVisible();
+
+    // Tidy up, so Riley isn't busy in other stories.
+    await page
+      .getByRole("region", { name: "Your busy times" })
+      .getByRole("listitem")
+      .filter({ hasText: dates })
+      .getByRole("button", { name: /^Delete weekly busy time/ })
+      .click();
+    await expect(
+      page.getByRole("region", { name: "Your busy times" }).getByText(dates),
+    ).toHaveCount(0);
+  });
+});

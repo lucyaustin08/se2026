@@ -8,6 +8,7 @@ Notable changes to Roadhouse, newest first.
 - The database is now PostgreSQL everywhere (Docker Compose, Codespaces, tests and CI). Docker needs a `.env` file with `POSTGRES_PASSWORD`; existing codespaces need rebuilding once.
 
 ### Added
+- Weekly busy times: members mark times they're busy every week (days, clock times, first date and an optional last date, including overnight). They count in the invite list, Find a time and the calendar, and keep their clock time across daylight saving.
 - Find a time: when scheduling a practice, the app suggests the best time on each day one to three weeks ahead, never over a gig, and names who can't come.
 - Calendar on the Scheduling tab: month and week views of gigs, practices and busy times, with each player in their own color plus initials, a day-by-day list, and arrow-key navigation.
 - Practices: the manager and band leader schedule one-time practices and invite any group of players. A practice can't overlap a gig, and one on a gig day needs confirming. Members accept or decline.

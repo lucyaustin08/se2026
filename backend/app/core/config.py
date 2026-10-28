@@ -7,6 +7,10 @@ from dataclasses import dataclass
 # only ever used on that one machine; Docker Compose and anything shared set DATABASE_URL.
 DEFAULT_DATABASE_URL = "postgresql+psycopg://roadhouse:roadhouse@localhost:5432/roadhouse"
 
+# Everyone in the band is in one time zone (DECISIONS.md, "Gig times entered in the browser's
+# local time"). Rules that need the band's local calendar, such as recurring busy times, use it.
+BAND_TIME_ZONE_NAME = "America/New_York"
+
 
 @dataclass(frozen=True, slots=True)
 class Settings:

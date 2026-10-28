@@ -1,12 +1,12 @@
 """Builders for test data. Each one commits, so the API under test can see the rows."""
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, time
 from itertools import count
 from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.models.availability import BusyTime
+from app.models.availability import BusyTime, RecurringBusyTime
 from app.models.enums import ContactLabel, GigStatus, InvitationStatus, Role, SlotStatus
 from app.models.gig import Gig, GigContact, GigSlot
 from app.models.member import Member
@@ -138,3 +138,25 @@ class Factory:
         self.session.add(practice)
         self.session.commit()
         return practice
+
+    def weekly(
+        self,
+        member: Member,
+        weekdays: list[int],
+        start: time,
+        end: time,
+        starts_on: date,
+        ends_on: date | None = None,
+    ) -> RecurringBusyTime:
+        """A weekly busy time. Weekdays are ISO numbers: 1 is Monday, 7 is Sunday."""
+        rule = RecurringBusyTime(
+            member_id=member.id,
+            weekdays=weekdays,
+            start_time=start,
+            end_time=end,
+            starts_on=starts_on,
+            ends_on=ends_on,
+        )
+        self.session.add(rule)
+        self.session.commit()
+        return rule

@@ -75,8 +75,9 @@ function useCalendarData(rangeStart: string, rangeEnd: string) {
     queryKey: ["busy-times", "calendar", rangeStart, rangeEnd],
     queryFn: () =>
       unwrap(
-        api.GET("/api/v1/busy-times", {
-          params: { query: { ends_after: rangeStart, starts_before: rangeEnd, page_size: 100 } },
+        // One-off busy times and each day of the weekly ones, already worked out by the server.
+        api.GET("/api/v1/busy-times/periods", {
+          params: { query: { ends_after: rangeStart, starts_before: rangeEnd } },
         }),
       ),
   });
@@ -98,7 +99,7 @@ export function BandCalendar() {
   const entries: CalendarEntry[] = [
     ...(gigs.data?.items ?? []).flatMap((gig) => gigEntry(gig) ?? []),
     ...(practices.data?.items ?? []).map(practiceEntry),
-    ...(busyTimes.data?.items ?? []).map(busyEntry),
+    ...(busyTimes.data?.periods ?? []).map(busyEntry),
   ];
   const fills = memberFills(members.data?.items ?? []);
   const failed = [gigs, practices, busyTimes].filter((query) => query.isError);

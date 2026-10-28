@@ -310,14 +310,18 @@ interface InviteFormProps {
   availability?: GigAvailability;
 }
 
-/** "Busy: busy time Sun, Oct 18, 6:00 PM – 9:00 PM; playing Hub City Tap" for one player. */
+/**
+ * Why one player is busy: "marked busy Sun, Oct 18, 2026, 6:00 PM – 9:00 PM; playing Hub City
+ * Tap". A weekly busy time says "busy every week" instead.
+ */
 function busyReasons(player: PlayerAvailability): string {
   return player.conflicts
-    .map((conflict) =>
-      conflict.kind === "gig"
-        ? `playing ${conflict.venue_name ?? "another gig"}`
-        : `marked busy ${formatRange(conflict.starts_at, conflict.ends_at)}`,
-    )
+    .map((conflict) => {
+      const range = formatRange(conflict.starts_at, conflict.ends_at);
+      if (conflict.kind === "gig") return `playing ${conflict.venue_name ?? "another gig"}`;
+      if (conflict.kind === "weekly_busy_time") return `busy every week ${range}`;
+      return `marked busy ${range}`;
+    })
     .join("; ");
 }
 

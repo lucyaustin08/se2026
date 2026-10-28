@@ -5,7 +5,14 @@ from pydantic import AwareDatetime
 
 from app.api.v1.dependencies import ActingMember, AvailabilityServiceDep
 from app.api.v1.responses import error_responses
-from app.schemas.availability import BusyTimeIn, BusyTimeOut, BusyTimePage, BusyTimeSort
+from app.schemas.availability import (
+    BusyPeriods,
+    BusyPeriodsQuery,
+    BusyTimeIn,
+    BusyTimeOut,
+    BusyTimePage,
+    BusyTimeSort,
+)
 from app.schemas.pagination import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
 
 router = APIRouter(prefix="/busy-times", tags=["availability"])
@@ -40,6 +47,19 @@ def list_busy_times(
         page=page,
         page_size=page_size,
     )
+
+
+@router.get("/periods", response_model=BusyPeriods, responses=error_responses(403, 422))
+def list_busy_periods(
+    query: Annotated[BusyPeriodsQuery, Query()],
+    actor: ActingMember,
+    service: AvailabilityServiceDep,
+) -> BusyPeriods:
+    """Every busy period overlapping a range of up to 62 days, for the calendar: one-off busy
+    times, and each day's occurrence of the weekly ones, worked out by the database in the
+    band's time zone. The manager and band leader see everyone's; members see only their own.
+    """
+    return service.busy_periods(actor, query)
 
 
 @router.post("", status_code=201, response_model=BusyTimeOut, responses=error_responses(403, 422))

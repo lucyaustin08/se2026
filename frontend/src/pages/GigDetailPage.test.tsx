@@ -263,6 +263,45 @@ describe("gig detail page", () => {
     ).toBeEnabled();
   });
 
+  it("says when a player is busy because of a weekly busy time", async () => {
+    server.use(
+      http.get("*/api/v1/gigs/:gigId/availability", () => {
+        const availability = availabilityFor(hubCity);
+        return HttpResponse.json({
+          ...availability,
+          players: availability.players.map((player) =>
+            player.member.id === riley.id
+              ? {
+                  ...player,
+                  busy: true,
+                  conflicts: [
+                    {
+                      kind: "weekly_busy_time",
+                      starts_at: "2026-11-02T23:00:00Z",
+                      ends_at: "2026-11-03T02:00:00Z",
+                      gig_id: null,
+                      venue_name: null,
+                    },
+                  ],
+                }
+              : player,
+          ),
+        });
+      }),
+    );
+    const { user } = renderApp("/gigs/11", { as: asManager });
+
+    const select = await screen.findByLabelText("Invite for Bass");
+    await user.selectOptions(
+      select,
+      await within(select).findByRole("option", { name: "Riley Chen · Busy" }),
+    );
+
+    expect(select).toHaveAccessibleDescription(
+      "Riley Chen is busy then: busy every week Mon, Nov 2, 2026, 6:00 PM – 9:00 PM. You can still invite them.",
+    );
+  });
+
   it("says busy marks need a date when the gig has none", async () => {
     server.use(
       http.get("*/api/v1/gigs/:gigId/availability", () =>
