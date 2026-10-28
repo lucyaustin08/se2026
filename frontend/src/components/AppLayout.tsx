@@ -21,10 +21,13 @@ export function AppLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-white font-sans text-ink-900">
-      <header className="border-b border-gray-200">
+    <div className="min-h-screen bg-paper font-sans text-ink">
+      <header className="border-b border-gray-300">
         <div className="mx-auto max-w-5xl px-4 py-3">
-          <p className="text-lg font-bold text-brand-700">Roadhouse</p>
+          {/* Anton has one weight, so no font-bold here: the browser would fake it. */}
+          <p className="font-display text-3xl leading-tight tracking-wide text-brand-700 uppercase">
+            Roadhouse
+          </p>
           <nav aria-label="Main" className="mt-2 overflow-x-auto">
             <ul className="flex gap-1 whitespace-nowrap">
               {NAV_ITEMS.map((item) => (
@@ -34,8 +37,9 @@ export function AppLayout() {
                     end={item.path === "/"}
                     className={({ isActive }) =>
                       [
-                        "inline-block rounded px-3 py-2 text-sm",
-                        "focus-visible:outline-2 focus-visible:outline-brand-600",
+                        "inline-block px-3 py-2 text-sm",
+                        // Inset so the nav's horizontal scroll doesn't clip the outline.
+                        "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-600",
                         // Active state is shown by weight and underline, not color alone.
                         isActive
                           ? "bg-brand-50 font-semibold underline underline-offset-4"
@@ -57,7 +61,7 @@ export function AppLayout() {
             <button
               type="button"
               onClick={switchUser}
-              className="rounded border border-gray-400 px-2 py-1 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-brand-600"
+              className="border border-gray-400 px-2 py-1 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-brand-600"
             >
               Switch user
             </button>
