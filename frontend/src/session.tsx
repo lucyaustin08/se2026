@@ -11,6 +11,12 @@ export interface ActingMember {
   id: number;
   name: string;
   isManager: boolean;
+  isBandLeader: boolean;
+}
+
+/** The manager or the band leader: they see every gig in full. The server decides for real. */
+export function runsTheBand(member: ActingMember): boolean {
+  return member.isManager || member.isBandLeader;
 }
 
 const STORAGE_KEY = "roadhouse.actingMember";
@@ -21,7 +27,8 @@ function isActingMember(value: unknown): value is ActingMember {
   return (
     typeof record.id === "number" &&
     typeof record.name === "string" &&
-    typeof record.isManager === "boolean"
+    typeof record.isManager === "boolean" &&
+    typeof record.isBandLeader === "boolean"
   );
 }
 

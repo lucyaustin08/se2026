@@ -6,9 +6,10 @@ afterEach(() => window.sessionStorage.clear());
 
 describe("acting member storage", () => {
   it("survives a reload through sessionStorage", () => {
-    setActingMember({ id: 2, name: "Sam Rivera", isManager: false });
+    const sam = { id: 2, name: "Sam Rivera", isManager: false, isBandLeader: true };
+    setActingMember(sam);
 
-    expect(reloadActingMember()).toEqual({ id: 2, name: "Sam Rivera", isManager: false });
+    expect(reloadActingMember()).toEqual(sam);
   });
 
   it("ignores stored data that isn't a valid choice", () => {
@@ -17,10 +18,17 @@ describe("acting member storage", () => {
 
     window.sessionStorage.setItem("roadhouse.actingMember", "not json");
     expect(reloadActingMember()).toBeNull();
+
+    // Saved before the band leader existed: the person picks again.
+    window.sessionStorage.setItem(
+      "roadhouse.actingMember",
+      '{"id":2,"name":"Sam Rivera","isManager":false}',
+    );
+    expect(reloadActingMember()).toBeNull();
   });
 
   it("forgets the choice when cleared", () => {
-    setActingMember({ id: 1, name: "Jordan Avery", isManager: true });
+    setActingMember({ id: 1, name: "Jordan Avery", isManager: true, isBandLeader: false });
     setActingMember(null);
 
     expect(getActingMember()).toBeNull();

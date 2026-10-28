@@ -20,7 +20,12 @@ export function LoginPage() {
   });
 
   function choose(member: MemberRead) {
-    signIn({ id: member.id, name: member.name, isManager: member.is_manager });
+    signIn({
+      id: member.id,
+      name: member.name,
+      isManager: member.is_manager,
+      isBandLeader: member.is_band_leader,
+    });
     navigate("/gigs");
   }
 
@@ -55,7 +60,8 @@ function MemberChoices({ members, onChoose }: MemberChoicesProps) {
     return <p>No band members have been added yet.</p>;
   }
   const manager = members.find((member) => member.is_manager);
-  const bandMembers = members.filter((member) => !member.is_manager);
+  const leader = members.find((member) => member.is_band_leader);
+  const bandMembers = members.filter((member) => !member.is_manager && !member.is_band_leader);
 
   return (
     <>
@@ -77,6 +83,23 @@ function MemberChoices({ members, onChoose }: MemberChoicesProps) {
         )}
       </section>
 
+      <section aria-labelledby="leader-heading" className="mt-6">
+        <h2 id="leader-heading" className="text-lg font-semibold">
+          Band leader
+        </h2>
+        {leader ? (
+          <button type="button" className={`${choiceButton} mt-2`} onClick={() => onChoose(leader)}>
+            <span className="block font-semibold">Continue as band leader</span>
+            <span className="block text-sm text-gray-700">
+              {leader.name}
+              {leader.primary_role && ` · ${ROLE_LABELS[leader.primary_role]}`}
+            </span>
+          </button>
+        ) : (
+          <p className="mt-2 text-gray-700">No band leader has been set up yet.</p>
+        )}
+      </section>
+
       <section aria-labelledby="member-heading" className="mt-6">
         <h2 id="member-heading" className="text-lg font-semibold">
           Continue as a member
@@ -91,7 +114,6 @@ function MemberChoices({ members, onChoose }: MemberChoicesProps) {
                   <span className="block font-semibold">{member.name}</span>
                   <span className="block text-sm text-gray-700">
                     {member.primary_role ? ROLE_LABELS[member.primary_role] : "No role set"}
-                    {member.is_band_leader && " · Band leader"}
                   </span>
                 </button>
               </li>

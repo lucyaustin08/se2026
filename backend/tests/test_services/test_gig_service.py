@@ -80,20 +80,29 @@ def test_manager_can_create_a_gig_with_roles_and_contacts(
         lambda s, m, g: s.update_gig(m, g.id, GigUpdate(venue_name="X")),
         lambda s, m, g: s.book_gig(m, g.id),
         lambda s, m, g: s.invite(m, g.id, g.slots[0].id, InvitationIn(member_id=m.id)),
-        lambda s, m, g: s.set_slot_pay(m, g.id, g.slots[0].id, 100),
     ],
-    ids=["create", "edit", "book", "invite", "set pay"],
+    ids=["create", "edit", "book", "invite"],
 )
-def test_members_cannot_do_manager_actions(
-    service: GigService, make: Factory, db: Session, action: Any
+@pytest.mark.parametrize("is_band_leader", [False, True], ids=["member", "band leader"])
+def test_only_the_manager_can_do_manager_actions(
+    service: GigService, make: Factory, db: Session, action: Any, is_band_leader: bool
 ) -> None:
     gig = make.bookable_gig()
-    member = make.member()
+    member = make.member(leader=is_band_leader)
 
     with pytest.raises(PermissionDeniedError) as error:
         action(service, member, gig)
 
     assert error.value.code == "manager_only"
+
+
+def test_an_ordinary_member_cannot_set_pay(service: GigService, make: Factory) -> None:
+    gig = make.bookable_gig()
+
+    with pytest.raises(PermissionDeniedError) as error:
+        service.set_slot_pay(make.member(), gig.id, gig.slots[0].id, 100)
+
+    assert error.value.code == "manager_or_band_leader_only"
 
 
 # ---- Booking ----------------------------------------------------------------------------------
@@ -477,6 +486,18 @@ def test_manager_can_change_a_members_pay(service: GigService, make: Factory) ->
     assert detail.slots[0].pay_cents == 12_500
 
 
+def test_the_band_leader_can_change_a_members_pay(
+    service: GigService, make: Factory, db: Session
+) -> None:
+    gig = make.gig()
+    slot = make.slot(gig, Role.BASS, make.member(), pay_cents=10_000)
+
+    service.set_slot_pay(make.leader(), gig.id, slot.id, 12_500)
+
+    db.expire_all()
+    assert db.get(GigSlot, slot.id).pay_cents == 12_500  # type: ignore[union-attr]
+
+
 # ---- Answering invitations ----------------------------------------------------------------
 
 
@@ -700,6 +721,55 @@ def test_an_invited_member_sees_the_potential_gig_and_only_their_own_pay(
     assert detail.missing_for_booking == []
 
 
+def test_members_on_a_gig_dont_see_its_venue_contacts(service: GigService, make: Factory) -> None:
+    gig = make.bookable_gig(status=GigStatus.BOOKED)
+    riley = make.member()
+    make.slot(gig, Role.BASS, riley, SlotStatus.ACCEPTED)
+
+    assert service.get_gig(riley, gig.id).contacts == []
+
+
+@pytest.mark.parametrize("who", ["manager", "band leader"])
+def test_the_manager_and_band_leader_see_venue_contacts(
+    service: GigService, make: Factory, who: str
+) -> None:
+    gig = make.bookable_gig()
+    actor = make.manager() if who == "manager" else make.leader()
+
+    contacts = service.get_gig(actor, gig.id).contacts
+
+    assert [(c.name, c.phone) for c in contacts] == [("Pat Lee", "555-0142")]
+
+
+def test_the_band_leader_sees_the_total_and_every_pay(service: GigService, make: Factory) -> None:
+    leader = make.leader()
+    gig = make.bookable_gig(leader=leader)
+    make.slot(gig, Role.BASS, make.member(), pay_cents=15_000)
+
+    detail = service.get_gig(leader, gig.id)
+
+    assert detail.pay_cents == 40_000
+    assert {slot.role: slot.pay_cents for slot in detail.slots} == {
+        Role.RHYTHM_GUITAR_VOCALS: 20_000,
+        Role.BASS: 15_000,
+    }
+    # The band leader plays, so their own slot is still theirs to answer.
+    assert detail.my_slot_id == next(
+        s.id for s in detail.slots if s.role is Role.RHYTHM_GUITAR_VOCALS
+    )
+
+
+def test_the_band_leader_sees_gigs_they_arent_on(service: GigService, make: Factory) -> None:
+    leader = make.leader()
+    draft = make.gig(venue_name="Draft nobody is on")
+    booked = make.bookable_gig(status=GigStatus.BOOKED, venue_name="Someone else's")
+
+    assert service.get_gig(leader, draft.id).venue_name == "Draft nobody is on"
+    rows = {row.id: row for row in list_for(service, leader).items}
+    assert {rows[draft.id].restricted, rows[booked.id].restricted} == {False}
+    assert rows[booked.id].venue_name == "Someone else's"
+
+
 def test_the_manager_sees_every_pay(service: GigService, make: Factory) -> None:
     gig = make.bookable_gig()
 
@@ -726,10 +796,11 @@ def test_a_potential_gig_looks_missing_to_members_who_arent_invited(
 
 
 def test_a_member_in_the_lineup_sees_the_booked_gig(service: GigService, make: Factory) -> None:
-    leader = make.leader()
-    gig = make.bookable_gig(status=GigStatus.BOOKED, leader=leader)
+    riley = make.member()
+    gig = make.bookable_gig(status=GigStatus.BOOKED)
+    make.slot(gig, Role.BASS, riley, SlotStatus.ACCEPTED)
 
-    assert service.get_gig(leader, gig.id).venue_name == "The Blue Door"
+    assert service.get_gig(riley, gig.id).venue_name == "The Blue Door"
 
 
 def test_a_member_not_in_the_lineup_cannot_open_a_booked_gig(
