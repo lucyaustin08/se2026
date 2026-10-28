@@ -441,3 +441,107 @@ describe("scheduling page: weekly busy times", () => {
     );
   });
 });
+
+describe("scheduling page: busy times over practices and gigs", () => {
+  const warning =
+    "You're invited to the practice at Sam's garage on Thu, Nov 12 at 6:00 PM then. Add the busy time anyway and decline it?";
+
+  async function addOneOff(user: ReturnType<typeof renderApp>["user"]) {
+    await user.click(await screen.findByRole("button", { name: "Add busy time" }));
+    const dialog = screen.getByRole("dialog", { name: "Add busy time" });
+    await user.type(within(dialog).getByLabelText("Start date"), "2026-11-12");
+    await user.type(within(dialog).getByLabelText("Start time"), "17:00");
+    await user.type(within(dialog).getByLabelText("End time"), "19:00");
+    await user.click(within(dialog).getByRole("button", { name: "Add busy time" }));
+    return dialog;
+  }
+
+  function warnUntilConfirmed(path: string, sent: unknown[]) {
+    return http.post(path, async ({ request }) => {
+      const body = (await request.json()) as Record<string, unknown>;
+      sent.push(body);
+      if (!body.decline_invitations) {
+        return HttpResponse.json(errorBody("busy_time_overlaps_invitation", warning), {
+          status: 409,
+        });
+      }
+      return HttpResponse.json(
+        { id: 990, member: { id: 4, name: "Riley Chen" }, ...body },
+        { status: 201 },
+      );
+    });
+  }
+
+  it("warns about an invitation, and declines it when the member confirms", async () => {
+    const sent: unknown[] = [];
+    server.use(warnUntilConfirmed("*/api/v1/busy-times", sent));
+    const { user } = renderApp("/scheduling", { as: asRiley });
+
+    const dialog = await addOneOff(user);
+
+    const alert = await within(dialog).findByRole("alert");
+    expect(alert).toHaveTextContent("You're invited then");
+    expect(alert).toHaveTextContent(warning);
+    await user.click(within(alert).getByRole("button", { name: "Decline and save" }));
+
+    expect(sent).toEqual([
+      { starts_at: "2026-11-12T22:00:00.000Z", ends_at: "2026-11-13T00:00:00.000Z" },
+      {
+        starts_at: "2026-11-12T22:00:00.000Z",
+        ends_at: "2026-11-13T00:00:00.000Z",
+        decline_invitations: true,
+      },
+    ]);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("lets the member go back and change the time instead", async () => {
+    const sent: unknown[] = [];
+    server.use(warnUntilConfirmed("*/api/v1/busy-times", sent));
+    const { user } = renderApp("/scheduling", { as: asRiley });
+
+    const dialog = await addOneOff(user);
+    await user.click(await within(dialog).findByRole("button", { name: "Change the time" }));
+
+    expect(within(dialog).queryByRole("alert")).not.toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Start time")).toHaveValue("17:00");
+    expect(sent).toHaveLength(1);
+  });
+
+  it("warns the same way for a weekly busy time", async () => {
+    const sent: unknown[] = [];
+    server.use(warnUntilConfirmed("*/api/v1/recurring-busy-times", sent));
+    const { user } = renderApp("/scheduling", { as: asRiley });
+
+    await user.click(await screen.findByRole("button", { name: "Add busy time" }));
+    const dialog = screen.getByRole("dialog", { name: "Add busy time" });
+    await user.click(within(dialog).getByRole("radio", { name: "Repeats weekly" }));
+    await user.click(within(dialog).getByRole("checkbox", { name: "Thursday" }));
+    await user.type(within(dialog).getByLabelText("Start time"), "17:00");
+    await user.type(within(dialog).getByLabelText("End time"), "19:00");
+    await user.click(within(dialog).getByRole("button", { name: "Add busy time" }));
+    await user.click(await within(dialog).findByRole("button", { name: "Decline and save" }));
+
+    expect(sent).toHaveLength(2);
+    expect(sent[1]).toMatchObject({ weekdays: [4], decline_invitations: true });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("refuses a busy time over a practice the member is attending, and says why", async () => {
+    const refusal =
+      "You're attending the practice at Sam's garage on Thu, Nov 12 at 6:00 PM then, so you can't mark that time as busy. If you can't make it, talk to the manager or band leader.";
+    server.use(
+      http.post("*/api/v1/busy-times", () =>
+        HttpResponse.json(errorBody("busy_time_overlaps_accepted", refusal), { status: 409 }),
+      ),
+    );
+    const { user } = renderApp("/scheduling", { as: asRiley });
+
+    const dialog = await addOneOff(user);
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(refusal);
+    expect(
+      within(dialog).queryByRole("button", { name: "Decline and save" }),
+    ).not.toBeInTheDocument();
+  });
+});

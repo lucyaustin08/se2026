@@ -89,7 +89,7 @@ describe("practices on the scheduling page", () => {
 
     await user.click(within(card as HTMLElement).getByRole("button", { name: "I'll be there" }));
 
-    expect(await within(practicesRegion()).findByText("Coming")).toBeInTheDocument();
+    expect(await within(practicesRegion()).findByText("Attending")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "I'll be there" })).not.toBeInTheDocument();
   });
 
@@ -116,11 +116,11 @@ describe("practices on the scheduling page", () => {
     expect(within(card as HTMLElement).queryByRole("button")).toBeNull();
   });
 
-  it("shows the manager who's coming, and no schedule button for members", async () => {
+  it("shows the manager who's attending, and no schedule button for members", async () => {
     renderApp("/scheduling", { as: asManager });
 
     const invited = await within(practicesRegion()).findByRole("list", { name: "Who's invited" });
-    expect(invited).toHaveTextContent("Sam Rivera Coming");
+    expect(invited).toHaveTextContent("Sam Rivera Attending");
     expect(invited).toHaveTextContent("Riley Chen Invited");
     expect(invited).toHaveTextContent("Casey Morgan Can't make it");
     expect(screen.getByRole("button", { name: "Schedule practice" })).toBeInTheDocument();

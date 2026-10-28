@@ -755,3 +755,22 @@ The overlap check that was private to the gig service is now `busy_window()`, so
 - Storing the times in UTC. Not taken: a busy time from 8:00 AM to 5:00 PM would move by an hour every time the clocks change.
 - Letting the calendar page through `/busy-times`. Not taken: weekly busy times aren't rows to page through, and a calendar wants everything in its range at once.
 - A newer weekly busy time ending an older one automatically. Not taken: the product owner didn't ask for it, and members can have more than one regular commitment (a job and a class).
+
+---
+
+## 2026-10-28 — Busy times over practices and gigs
+
+**Status:** the team's decision. The product owner hasn't confirmed it yet; the team is asking her.
+
+**Decision:** When a member adds or changes a busy time (one-off or weekly), it's checked against the practices and gigs they're invited to or have accepted that haven't ended yet. For gigs, that means soundcheck to the end.
+- **Accepted:** refused with `409 busy_time_overlaps_accepted`. The member is told to talk to the manager or band leader, since there's no way to take back an acceptance yet (that's on the product backlog).
+- **Only invited:** refused with a warning, `409 busy_time_overlaps_invitation`, naming each practice or gig. If the member confirms ("Decline and save"), the request is sent again with `decline_invitations: true`. Each of those invitations is then declined, and the busy time is saved in the same transaction. This is the same confirm-and-resend pattern as the same-day practice warning.
+- **Declined invitations, cancelled gigs, and anything that has already ended** don't count. Touching ends don't count.
+- **Weekly busy times** are checked day by day. PostgreSQL works out the rule's days (the new values are flushed and rolled back if refused), so a weekly busy time that only overlaps on one Tuesday in March is caught.
+
+**Alternatives considered:**
+- Allowing any busy time, and leaving it to the member to decline. It was the behavior before this change, but it let an accepted practice and a busy time say opposite things.
+- Refusing invited ones too. Not taken: a member who really can't come should be able to say so, and declining is the honest answer.
+- Declining without asking. Not taken: the member should see what's about to be declined.
+
+**Not changed:** accepting an invitation to a practice or gig that overlaps your own busy time is still allowed. Nobody has asked about that direction yet.

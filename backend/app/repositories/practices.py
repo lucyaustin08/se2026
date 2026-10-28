@@ -77,3 +77,19 @@ class PracticeRepository:
         )
         # The end is computed from the length, so the last check happens here, not in SQL.
         return [p for p in self._session.scalars(stmt) if p.ends_at > start]
+
+    def open_invitations_for_member(
+        self, member_id: int, *, ending_after: datetime
+    ) -> list[PracticeInvitation]:
+        """The member's invitations they haven't declined, to practices that end after
+        `ending_after`."""
+        stmt = (
+            select(PracticeInvitation)
+            .join(PracticeInvitation.practice)
+            .where(
+                PracticeInvitation.member_id == member_id,
+                PracticeInvitation.status != InvitationStatus.DECLINED,
+                Practice.starts_at > ending_after - timedelta(minutes=MAX_PRACTICE_MINUTES),
+            )
+        )
+        return [i for i in self._session.scalars(stmt) if i.practice.ends_at > ending_after]

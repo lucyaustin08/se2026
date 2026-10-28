@@ -5,9 +5,11 @@ Notable changes to Roadhouse, newest first.
 ## Unreleased
 
 ### Changed
+- A practice invitation that's been accepted now shows as "Attending" instead of "Coming".
 - The database is now PostgreSQL everywhere (Docker Compose, Codespaces, tests and CI). Docker needs a `.env` file with `POSTGRES_PASSWORD`; existing codespaces need rebuilding once.
 
 ### Added
+- Busy times over practices and gigs: a busy time can't overlap a practice or gig the member has accepted. Over one they're only invited to, the app warns them and declines the invitation if they go ahead.
 - Weekly busy times: members mark times they're busy every week (days, clock times, first date and an optional last date, including overnight). They count in the invite list, Find a time and the calendar, and keep their clock time across daylight saving.
 - Find a time: when scheduling a practice, the app suggests the best time on each day one to three weeks ahead, never over a gig, and names who can't come.
 - Calendar on the Scheduling tab: month and week views of gigs, practices and busy times, with each player in their own color plus initials, a day-by-day list, and arrow-key navigation.

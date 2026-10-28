@@ -108,6 +108,21 @@ class GigRepository:
         )
         return list(self._session.scalars(stmt))
 
+    def open_slots_for_member(self, member_id: int) -> list[GigSlot]:
+        """The member's slots they're invited to or have accepted, on dated gigs that aren't
+        cancelled."""
+        stmt = (
+            select(GigSlot)
+            .join(GigSlot.gig)
+            .where(
+                GigSlot.member_id == member_id,
+                GigSlot.status.in_([SlotStatus.INVITED, SlotStatus.ACCEPTED]),
+                Gig.status != GigStatus.CANCELLED,
+                Gig.first_set_at.is_not(None),
+            )
+        )
+        return list(self._session.scalars(stmt))
+
     def accepted_by_member(self, member_id: int, *, exclude_gig_id: int) -> list[Gig]:
         """Every other gig (not cancelled) where the member has accepted a slot."""
         stmt = select(Gig).where(

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { api } from "../api/client";
-import { errorMessage, unwrap } from "../api/errors";
+import { ApiError, errorMessage, unwrap } from "../api/errors";
 import type {
   BusyTimeIn,
   BusyTimeOut,
@@ -17,7 +17,7 @@ import { WeeklyBusyTimeForm } from "../components/WeeklyBusyTimeForm";
 import { formatRange, formatWeeklyDates, formatWeeklyTimes } from "../format";
 import { runsTheBand, useActingMember } from "../session";
 import { BandCalendar } from "./BandCalendar";
-import { PracticesSection } from "./PracticesSection";
+import { PRACTICES_KEY, PracticesSection } from "./PracticesSection";
 
 const BUSY_TIMES_KEY = ["busy-times"] as const;
 const PAGE_SIZE = 100;
@@ -266,6 +266,19 @@ function WeeklyBusyTimeRow({
   );
 }
 
+/**
+ * The server's warning that a busy time overlaps practices or gigs the member is invited to.
+ * Saving again with `decline_invitations` declines them. (One they've accepted is refused
+ * outright, and shows as an ordinary error.)
+ */
+type InvitationWarning =
+  | { message: string; weekly: false; body: BusyTimeIn }
+  | { message: string; weekly: true; body: RecurringBusyTimeIn };
+
+function isInvitationWarning(error: unknown): error is ApiError {
+  return error instanceof ApiError && error.code === "busy_time_overlaps_invitation";
+}
+
 function BusyTimeDialog({
   editing,
   onClose,
@@ -277,8 +290,13 @@ function BusyTimeDialog({
   // Only a new busy time can choose; a change keeps the kind it already is.
   const [repeats, setRepeats] = useState(false);
   const weekly = editing.kind === "add" ? repeats : editing.kind === "change-weekly";
+  const [warning, setWarning] = useState<InvitationWarning | null>(null);
   const done = () => {
     void queryClient.invalidateQueries({ queryKey: BUSY_TIMES_KEY });
+    // Saving may have declined practice or gig invitations.
+    void queryClient.invalidateQueries({ queryKey: PRACTICES_KEY });
+    void queryClient.invalidateQueries({ queryKey: ["gigs"] });
+    void queryClient.invalidateQueries({ queryKey: ["gig"] });
     onClose();
   };
   const saveOneOff = useMutation({
@@ -291,7 +309,11 @@ function BusyTimeDialog({
             }),
           )
         : unwrap(api.POST("/api/v1/busy-times", { body })),
+    onMutate: () => setWarning(null),
     onSuccess: done,
+    onError: (error, body) => {
+      if (isInvitationWarning(error)) setWarning({ message: error.message, weekly: false, body });
+    },
   });
   const saveWeekly = useMutation({
     mutationFn: (body: RecurringBusyTimeIn) =>
@@ -303,7 +325,11 @@ function BusyTimeDialog({
             }),
           )
         : unwrap(api.POST("/api/v1/recurring-busy-times", { body })),
+    onMutate: () => setWarning(null),
     onSuccess: done,
+    onError: (error, body) => {
+      if (isInvitationWarning(error)) setWarning({ message: error.message, weekly: true, body });
+    },
   });
   const title =
     editing.kind === "add"
@@ -312,6 +338,11 @@ function BusyTimeDialog({
         ? "Change weekly busy time"
         : "Change busy time";
   const submitLabel = editing.kind === "add" ? "Add busy time" : "Save changes";
+
+  function declineAndSave(pending: InvitationWarning) {
+    if (pending.weekly) saveWeekly.mutate({ ...pending.body, decline_invitations: true });
+    else saveOneOff.mutate({ ...pending.body, decline_invitations: true });
+  }
 
   return (
     <Dialog title={title} onClose={onClose}>
@@ -329,7 +360,10 @@ function BusyTimeDialog({
                   name="how-often"
                   className="size-5 accent-brand-700"
                   checked={repeats === option.value}
-                  onChange={() => setRepeats(option.value)}
+                  onChange={() => {
+                    setRepeats(option.value);
+                    setWarning(null);
+                  }}
                 />
                 {option.label}
               </label>
@@ -342,12 +376,35 @@ function BusyTimeDialog({
           ? "The same hours every week, like a job or a class. Times are the band's local time."
           : "A one-off stretch of time you can't play. It can run over several days."}
       </p>
+      {warning && (
+        <div role="alert" className="mb-4 border-2 border-dashed border-mustard bg-paper p-3">
+          <p className="font-semibold">You're invited then</p>
+          <p className="mt-1">{warning.message}</p>
+          <div className="mt-3 flex flex-wrap gap-3">
+            <button
+              type="button"
+              className={primaryButton}
+              disabled={saveOneOff.isPending || saveWeekly.isPending}
+              onClick={() => declineAndSave(warning)}
+            >
+              Decline and save
+            </button>
+            <button type="button" className={secondaryButton} onClick={() => setWarning(null)}>
+              Change the time
+            </button>
+          </div>
+        </div>
+      )}
       {weekly ? (
         <WeeklyBusyTimeForm
           initial={editing.kind === "change-weekly" ? editing.rule : undefined}
           submitLabel={submitLabel}
           saving={saveWeekly.isPending}
-          saveError={saveWeekly.isError ? errorMessage(saveWeekly.error) : null}
+          saveError={
+            saveWeekly.isError && !isInvitationWarning(saveWeekly.error)
+              ? errorMessage(saveWeekly.error)
+              : null
+          }
           onSave={(body) => saveWeekly.mutate(body)}
           onCancel={onClose}
         />
@@ -356,7 +413,11 @@ function BusyTimeDialog({
           initial={editing.kind === "change" ? editing.busyTime : undefined}
           submitLabel={submitLabel}
           saving={saveOneOff.isPending}
-          saveError={saveOneOff.isError ? errorMessage(saveOneOff.error) : null}
+          saveError={
+            saveOneOff.isError && !isInvitationWarning(saveOneOff.error)
+              ? errorMessage(saveOneOff.error)
+              : null
+          }
           onSave={(body) => saveOneOff.mutate(body)}
           onCancel={onClose}
         />
