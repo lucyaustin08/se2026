@@ -34,12 +34,18 @@ class Factory:
         self.session = session
 
     def member(
-        self, *, name: str | None = None, role: Role | None = Role.BASS, leader: bool = False
+        self,
+        *,
+        name: str | None = None,
+        role: Role | None = Role.BASS,
+        leader: bool = False,
+        phone: str | None = None,
     ) -> Member:
         n = next(_ids)
         member = Member(
             name=name or f"Member {n}",
             email=f"member{n}@example.com",
+            phone=phone,
             primary_role=role,
             is_manager=False,
             is_band_leader=leader,

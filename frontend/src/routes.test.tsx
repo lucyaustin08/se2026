@@ -27,6 +27,7 @@ describe("app navigation", () => {
       "Songs & Setlists",
       "Members",
       "Booking",
+      "Profile",
     ]);
   });
 

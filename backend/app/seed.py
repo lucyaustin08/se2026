@@ -24,17 +24,38 @@ def seed_sample_band(session: Session) -> bool:
     if MemberRepository(session).count() > 0:
         return False
 
-    manager = Member(name="Jordan Avery", email="jordan@example.com", is_manager=True)
+    manager = Member(
+        name="Jordan Avery", email="jordan@example.com", phone="555-0100", is_manager=True
+    )
     sam = Member(
         name="Sam Rivera",
         email="sam@example.com",
+        phone="555-0101",
         primary_role=Role.RHYTHM_GUITAR_VOCALS,
+        secondary_role=Role.BASS,
         is_band_leader=True,
     )
-    casey = Member(name="Casey Morgan", email="casey@example.com", primary_role=Role.LEAD_GUITAR)
-    riley = Member(name="Riley Chen", email="riley@example.com", primary_role=Role.BASS)
-    taylor = Member(name="Taylor Brooks", email="taylor@example.com", primary_role=Role.DRUMS)
-    jamie = Member(name="Jamie Ortiz", email="jamie@example.com", primary_role=Role.SPECIALTY)
+    casey = Member(
+        name="Casey Morgan",
+        email="casey@example.com",
+        phone="555-0102",
+        primary_role=Role.LEAD_GUITAR,
+    )
+    riley = Member(
+        name="Riley Chen", email="riley@example.com", phone="555-0103", primary_role=Role.BASS
+    )
+    taylor = Member(
+        name="Taylor Brooks",
+        email="taylor@example.com",
+        phone="555-0104",
+        primary_role=Role.DRUMS,
+    )
+    jamie = Member(
+        name="Jamie Ortiz",
+        email="jamie@example.com",
+        phone="555-0105",
+        primary_role=Role.SPECIALTY,
+    )
     session.add_all([manager, sam, casey, riley, taylor, jamie])
     session.flush()
 

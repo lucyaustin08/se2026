@@ -49,3 +49,12 @@ def test_count(db: Session, make: Factory) -> None:
     make.member()
     make.manager()
     assert MemberRepository(db).count() == 2
+
+
+def test_get_by_email_ignores_case(db: Session, make: Factory) -> None:
+    riley = make.member()
+
+    found = MemberRepository(db).get_by_email(riley.email.upper())
+
+    assert found is not None and found.id == riley.id
+    assert MemberRepository(db).get_by_email("nobody@example.com") is None

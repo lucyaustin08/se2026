@@ -8,9 +8,10 @@ import { GigsPage } from "./pages/GigsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { NewGigPage } from "./pages/NewGigPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
+import { ProfilePage } from "./pages/ProfilePage";
 import { SectionPage } from "./pages/SectionPage";
 
-const BUILT_SECTIONS = new Set(["/gigs"]);
+const BUILT_SECTIONS = new Set(["/gigs", "/profile"]);
 
 // Sections whose feature isn't built yet get a placeholder page.
 const placeholderRoutes: RouteObject[] = NAV_ITEMS.filter(
@@ -31,6 +32,7 @@ export const routes: RouteObject[] = [
       { path: "gigs/new", element: <NewGigPage /> },
       { path: "gigs/:gigId", element: <GigDetailPage /> },
       { path: "gigs/:gigId/edit", element: <EditGigPage /> },
+      { path: "profile", element: <ProfilePage /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },

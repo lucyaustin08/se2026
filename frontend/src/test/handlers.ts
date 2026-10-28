@@ -12,9 +12,19 @@ import type {
   GigUpdate,
   InvitationIn,
   MemberPage,
+  MemberProfile,
+  MemberProfileUpdate,
   SlotOut,
 } from "../api/types";
-import { allMembers, blueDoor, gigDetails, hubCity, toListItem, undatedDraft } from "./fixtures";
+import {
+  allMembers,
+  allProfiles,
+  blueDoor,
+  gigDetails,
+  hubCity,
+  toListItem,
+  undatedDraft,
+} from "./fixtures";
 
 export function errorBody(code: string, detail: string): ErrorResponse {
   return { code, detail };
@@ -37,10 +47,28 @@ function requireActingMember(request: Request) {
 // The mock server's own copy of the data, so a refetch after a change returns the change,
 // as the real backend would. Reset after every test (see test_setup.ts).
 let store = new Map<number, GigDetail>();
+let profiles = new Map<number, MemberProfile>();
 
 export function resetMockData(): void {
   store = new Map(gigDetails.map((gig) => [gig.id, gig]));
+  profiles = new Map(allProfiles.map((profile) => [profile.id, profile]));
 }
+
+function actingProfile(request: Request): MemberProfile | undefined {
+  return profiles.get(Number(request.headers.get("X-Acting-Member-Id")));
+}
+
+/** Phone and email are only for that member, the manager and the band leader. */
+function asSeenBy(profile: MemberProfile, actor: MemberProfile | undefined): MemberProfile {
+  const seesContact =
+    actor && (actor.id === profile.id || actor.is_manager || actor.is_band_leader);
+  return seesContact ? profile : { ...profile, email: null, phone: null };
+}
+
+const memberNotFound = () =>
+  HttpResponse.json(errorBody("member_not_found", "That member doesn't exist."), {
+    status: 404,
+  });
 resetMockData();
 
 /** Save a gig into the mock server, for tests that override a handler. */
@@ -70,6 +98,51 @@ function updateSlot(
 
 export const handlers = [
   http.get("*/api/v1/members", () => HttpResponse.json<MemberPage>(page(allMembers))),
+
+  http.get("*/api/v1/members/:memberId", ({ request, params }) => {
+    const refused = requireActingMember(request);
+    if (refused) return refused;
+    const profile = profiles.get(Number(params.memberId));
+    return profile
+      ? HttpResponse.json(asSeenBy(profile, actingProfile(request)))
+      : memberNotFound();
+  }),
+
+  http.patch("*/api/v1/members/:memberId", async ({ request, params }) => {
+    const refused = requireActingMember(request);
+    if (refused) return refused;
+    const profile = profiles.get(Number(params.memberId));
+    if (!profile) return memberNotFound();
+    if (actingProfile(request)?.id !== profile.id) {
+      return HttpResponse.json(
+        errorBody("not_your_profile", "You can only edit your own profile."),
+        { status: 403 },
+      );
+    }
+    const body = (await request.json()) as MemberProfileUpdate;
+    const updated: MemberProfile = { ...profile, ...body } as MemberProfile;
+    const emailTaken = [...profiles.values()].some(
+      (other) =>
+        other.id !== profile.id && other.email?.toLowerCase() === body.email?.toLowerCase(),
+    );
+    if (emailTaken) {
+      return HttpResponse.json(
+        errorBody("email_taken", "Another member already uses that email address."),
+        { status: 409 },
+      );
+    }
+    if (updated.secondary_role !== null && updated.secondary_role === updated.primary_role) {
+      return HttpResponse.json(
+        errorBody(
+          "secondary_same_as_primary",
+          "Your secondary instrument has to be different from your primary one.",
+        ),
+        { status: 409 },
+      );
+    }
+    profiles.set(profile.id, updated);
+    return HttpResponse.json(updated);
+  }),
 
   http.get("*/api/v1/gigs", ({ request }) => {
     const refused = requireActingMember(request);

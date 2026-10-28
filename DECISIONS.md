@@ -600,3 +600,22 @@ The team decided this after the earlier entry kept these actions with the manage
 - Keeping adding, editing, booking and inviting with the manager (the earlier entry). Replaced: the product owner said gigs are "confirmed and booked by the band leader/manager," and that the band leader determines the instrumentation for each performance.
 
 **For the product owner (sprint review):** confirm that the band leader and manager have the same gig powers.
+
+---
+
+## 2026-10-28 — Member profiles
+
+**Decision:** Every user has a Profile tab showing their name, phone, email, primary instrument, optional secondary instrument and role. They can edit everything except the role.
+- `GET /members/{id}` returns a profile to anyone in the band. `email` and `phone` are `null` unless the reader is that member, the manager or the band leader.
+- `PATCH /members/{id}` only works on your own profile (`403 not_your_profile`, even for the manager and band leader). Omitted fields are unchanged, and `null` clears the phone or an instrument. Name and email can't be cleared.
+- **Roles are fixed.** There is one manager and one band leader, and nobody can change roles, not even the manager. The update schema forbids extra fields, so sending `is_manager` or `is_band_leader` is a `422`.
+- **The secondary instrument can't match the primary** (`409 secondary_same_as_primary`). The check uses the saved primary when only the secondary is sent, so swapping the two in one edit works.
+- **Emails are unique without regard to case** (`409 email_taken`), because the email will be the login.
+- The `Email` and `Phone` field types moved to `app/schemas/fields.py`, because gig and member schemas both use them and importing one from the other made a cycle.
+
+**Alternatives considered:**
+- Letting the manager change roles (the backlog's first wording). Not taken: the team decided roles are fixed.
+- A `422` for a secondary instrument matching the primary. Not taken: the rule compares against the saved primary, so it's a business rule (`409`), not request validation.
+- Letting the manager edit other members' profiles. Not taken: the product owner said members edit their own.
+
+**For the product owner (sprint review):** if the band ever changes band leaders, should the manager be able to reassign the role in the app?
