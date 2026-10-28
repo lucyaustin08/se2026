@@ -7,9 +7,10 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.models.availability import BusyTime
-from app.models.enums import ContactLabel, GigStatus, Role, SlotStatus
+from app.models.enums import ContactLabel, GigStatus, InvitationStatus, Role, SlotStatus
 from app.models.gig import Gig, GigContact, GigSlot
 from app.models.member import Member
+from app.models.practice import Practice, PracticeInvitation
 
 BLUE_DOOR_FIRST_SET = datetime(2026, 10, 19, 0, 0, tzinfo=UTC)
 
@@ -118,3 +119,22 @@ class Factory:
         self.session.add(busy_time)
         self.session.commit()
         return busy_time
+
+    def practice(
+        self,
+        starts_at: datetime,
+        invitees: list[Member],
+        *,
+        scheduled_by: Member | None = None,
+        status: InvitationStatus = InvitationStatus.INVITED,
+        **fields: Any,
+    ) -> Practice:
+        practice = Practice(
+            starts_at=starts_at,
+            scheduled_by_id=(scheduled_by or self.manager()).id,
+            invitations=[PracticeInvitation(member_id=m.id, status=status) for m in invitees],
+            **fields,
+        )
+        self.session.add(practice)
+        self.session.commit()
+        return practice

@@ -1,5 +1,6 @@
 from collections.abc import Collection
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import ColumnElement, and_, func, or_, select
@@ -87,6 +88,19 @@ class GigRepository:
             stmt.order_by(*_ORDER_BY[sort], Gig.id).limit(page_size).offset((page - 1) * page_size)
         )
         return list(self._session.scalars(stmt)), total
+
+    def dated_between(self, start: datetime, end: datetime) -> list[Gig]:
+        """Gigs that aren't cancelled whose first set is in [start, end), earliest first."""
+        stmt = (
+            select(Gig)
+            .where(
+                Gig.status != GigStatus.CANCELLED,
+                Gig.first_set_at >= start,
+                Gig.first_set_at < end,
+            )
+            .order_by(Gig.first_set_at)
+        )
+        return list(self._session.scalars(stmt))
 
     def accepted_by_member(self, member_id: int, *, exclude_gig_id: int) -> list[Gig]:
         """Every other gig (not cancelled) where the member has accepted a slot."""

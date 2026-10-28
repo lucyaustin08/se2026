@@ -4,6 +4,7 @@ import type {
   GigListItem,
   MemberProfile,
   MemberRead,
+  PracticeOut,
   SlotOut,
 } from "../api/types";
 import type { ActingMember } from "../session";
@@ -262,3 +263,32 @@ export const caseyAway: BusyTimeOut = {
 };
 
 export const allBusyTimes: BusyTimeOut[] = [rileyBusy, caseyAway];
+
+/**
+ * A practice Sam scheduled for 6:00–9:00 PM Eastern on Thu, Nov 12, 2026. Sam is coming,
+ * Riley hasn't answered and Casey can't make it. `my_status` is filled in per viewer.
+ */
+export const garagePractice: PracticeOut = {
+  id: 401,
+  starts_at: "2026-11-12T23:00:00Z",
+  ends_at: "2026-11-13T02:00:00Z",
+  length_minutes: 180,
+  location: "Sam's garage",
+  notes: "New songs",
+  scheduled_by: { id: sam.id, name: sam.name },
+  invitations: [
+    {
+      member: { id: sam.id, name: sam.name },
+      status: "accepted",
+      responded_at: "2026-10-20T12:00:00Z",
+    },
+    { member: { id: riley.id, name: riley.name }, status: "invited", responded_at: null },
+    {
+      member: { id: casey.id, name: casey.name },
+      status: "declined",
+      responded_at: "2026-10-21T12:00:00Z",
+    },
+  ],
+  my_status: null,
+  created_at: "2026-10-20T12:00:00Z",
+};

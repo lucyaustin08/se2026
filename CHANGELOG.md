@@ -5,6 +5,7 @@ Notable changes to Roadhouse, newest first.
 ## Unreleased
 
 ### Added
+- Practices: the manager and band leader schedule one-time practices and invite any group of players. A practice can't overlap a gig, and one on a gig day needs confirming. Members accept or decline.
 - Scheduling: members add, change and delete one-off busy times in a pop-up. The manager and band leader see everyone's. The invite list marks busy players and says why, and lists players who play the role as a secondary instrument.
 - Profile tab: everyone sees and edits their own name, phone, email and instruments. Roles are shown but fixed. Phone and email are visible only to that member, the manager and the band leader.
 - Band leader: their own place in the user picker. They see every gig with its total pay, everyone's pay and venue contacts, and can change a member's pay.
