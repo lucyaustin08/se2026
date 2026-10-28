@@ -6,6 +6,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.models.availability import BusyTime
 from app.models.enums import ContactLabel, GigStatus, Role, SlotStatus
 from app.models.gig import Gig, GigContact, GigSlot
 from app.models.member import Member
@@ -111,3 +112,9 @@ class Factory:
         )
         self.session.refresh(gig)
         return gig
+
+    def busy_time(self, member: Member, starts_at: datetime, ends_at: datetime) -> BusyTime:
+        busy_time = BusyTime(member_id=member.id, starts_at=starts_at, ends_at=ends_at)
+        self.session.add(busy_time)
+        self.session.commit()
+        return busy_time

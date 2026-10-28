@@ -2,9 +2,10 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query, Request, Response
 
-from app.api.v1.dependencies import ActingMember, GigServiceDep
+from app.api.v1.dependencies import ActingMember, AvailabilityServiceDep, GigServiceDep
 from app.api.v1.responses import error_responses
 from app.models.enums import GigStatus
+from app.schemas.availability import GigAvailability
 from app.schemas.gigs import (
     GigCreate,
     GigDetail,
@@ -66,6 +67,18 @@ def create_gig(
 @router.get("/{gig_id}", response_model=GigDetail, responses=error_responses(403, 404, 422))
 def get_gig(gig_id: int, actor: ActingMember, service: GigServiceDep) -> GigDetail:
     return service.get_gig(actor, gig_id)
+
+
+@router.get(
+    "/{gig_id}/availability",
+    response_model=GigAvailability,
+    responses=error_responses(403, 404, 422),
+)
+def get_gig_availability(
+    gig_id: int, actor: ActingMember, service: AvailabilityServiceDep
+) -> GigAvailability:
+    """Who is free to play, from soundcheck to the end (manager or band leader)."""
+    return service.gig_availability(actor, gig_id)
 
 
 @router.patch("/{gig_id}", response_model=GigDetail, responses=error_responses(403, 404, 409, 422))

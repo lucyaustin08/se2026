@@ -280,12 +280,12 @@ class GigService:
 
     def _overlapping_gig(self, member_id: int, gig: Gig) -> Gig | None:
         """Another gig the member accepted whose busy time (soundcheck to end) overlaps this one."""
-        window = _busy_window(gig)
+        window = busy_window(gig)
         if window is None:
             return None
         start, end = window
         for other in self._gigs.accepted_by_member(member_id, exclude_gig_id=gig.id):
-            other_window = _busy_window(other)
+            other_window = busy_window(other)
             if other_window is not None and start < other_window[1] and other_window[0] < end:
                 return other
         return None
@@ -416,7 +416,7 @@ def _require_complete(gig: Gig, message_prefix: str) -> None:
         )
 
 
-def _busy_window(gig: Gig) -> tuple[datetime, datetime] | None:
+def busy_window(gig: Gig) -> tuple[datetime, datetime] | None:
     """When a member on this gig is busy: from soundcheck to the end.
 
     Load-in doesn't count. The product owner's rule is that a member must be able to arrive

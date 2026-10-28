@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatDate,
   formatMoney,
+  formatRange,
   formatTime,
   localInputsToIso,
   toDateInputValue,
@@ -24,6 +25,20 @@ describe("time conversions", () => {
     expect(toTimeInputValue("2026-10-19T00:00:00Z")).toBe("20:00");
     expect(formatDate("2026-10-19T00:00:00Z")).toBe("Sun, Oct 18, 2026");
     expect(formatTime("2026-10-19T00:00:00Z")).toBe("8:00 PM");
+  });
+});
+
+describe("time ranges", () => {
+  it("shows a range on one day with the date once", () => {
+    expect(formatRange("2026-10-18T22:00:00Z", "2026-10-19T01:00:00Z")).toBe(
+      "Sun, Oct 18, 2026, 6:00 PM – 9:00 PM",
+    );
+  });
+
+  it("shows both dates for a range across days", () => {
+    expect(formatRange("2026-10-18T22:00:00Z", "2026-10-20T13:00:00Z")).toBe(
+      "Sun, Oct 18, 2026, 6:00 PM – Tue, Oct 20, 2026, 9:00 AM",
+    );
   });
 });
 

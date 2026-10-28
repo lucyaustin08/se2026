@@ -619,3 +619,32 @@ The team decided this after the earlier entry kept these actions with the manage
 - Letting the manager edit other members' profiles. Not taken: the product owner said members edit their own.
 
 **For the product owner (sprint review):** if the band ever changes band leaders, should the manager be able to reassign the role in the app?
+
+---
+
+## 2026-10-28 — One-off busy times
+
+**Decision:** Members enter when they're **busy**, as the product owner asked. This stage adds one-off busy times (recurring ones come later). A busy time is a start and an end in UTC, and it may run over several days.
+- `GET /busy-times`: the manager and band leader see everyone's, filtered by `member_id` if they like. Members see only their own, and asking for someone else's is `403 availability_private`. `ends_after` and `starts_before` pick a date range, and they must carry a time zone (`422` otherwise).
+- `POST /busy-times` adds one for whoever is acting. `PATCH /busy-times/{id}` takes both times again. `DELETE /busy-times/{id}` returns `204`. Only the owner can change or delete one (`403 not_your_busy_time`, even for the manager and band leader).
+- An end at or before the start is a `422`: it's checked from the request alone.
+- No reason is asked for, so there's no `q` on the list: a busy time has no text to search.
+- The manager doesn't play, so the Scheduling page doesn't offer them busy times of their own.
+
+**Alternatives considered:**
+- Soft-deleting busy times. Not taken: a deleted busy time has no history worth keeping, and every availability check would have to skip deleted rows. This is a deliberate exception to the soft-delete convention.
+- Members entering when they're available. Replaced: the product owner chose busy times.
+- Nesting them under `/members/{id}/busy-times`. Not taken: the calendar needs everyone's busy times in a date range in one request.
+
+---
+
+## 2026-10-28 — Who's busy when inviting
+
+**Decision:** `GET /gigs/{id}/availability` (manager or band leader) lists every player with whether they're busy during the gig's **soundcheck-to-end** window, and why: a busy time that overlaps it, or another accepted gig whose soundcheck-to-end window overlaps it. It's computed on every request, never stored. A busy time that ends exactly at soundcheck doesn't count. A player with no busy times is available. For a gig with no date, the window is `null` and nobody is marked busy.
+
+The invite list marks busy players "Name · Busy" and, once one is chosen, says why. A busy player can still be invited, as the product owner asked. The list now has three groups: players whose primary instrument is the role, then players whose secondary instrument is the role ("Also plays …"), then everyone else as backups.
+
+The overlap check that was private to the gig service is now `busy_window()`, so both services use the same window.
+
+**Alternatives considered:**
+- Hiding busy players or refusing to invite them. Not taken: the product owner wants them asked, so they can decide.

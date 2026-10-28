@@ -1,16 +1,23 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useId, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useParams } from "react-router";
 
 import { api } from "../api/client";
 import { ApiError, errorMessage, unwrap } from "../api/errors";
-import type { GigDetail, MemberRead, SlotOut } from "../api/types";
+import type {
+  GigAvailability,
+  GigDetail,
+  MemberRead,
+  PlayerAvailability,
+  SlotOut,
+} from "../api/types";
 import { TextField } from "../components/GigForm";
 import { ErrorMessage, Loading } from "../components/QueryStates";
 import {
   CONTACT_LABELS,
   formatDate,
   formatMoney,
+  formatRange,
   formatTime,
   GIG_STATUS_LABELS,
   LINEUP_SIZE_LABELS,
@@ -252,8 +259,22 @@ function MyInvitation({ gig, slot }: { gig: GigDetail; slot: SlotOut }) {
   );
 }
 
+function useGigAvailability(gig: GigDetail) {
+  return useQuery({
+    queryKey: [...gigQueryKey(gig.id), "availability"],
+    queryFn: () =>
+      unwrap(
+        api.GET("/api/v1/gigs/{gig_id}/availability", { params: { path: { gig_id: gig.id } } }),
+      ),
+    // Only needed while invitations can still be sent.
+    enabled: gig.status === "potential",
+  });
+}
+
 function ManagerLineup({ gig }: { gig: GigDetail }) {
   const members = useMembers();
+  // If availability can't load, the invite forms still work, just without busy marks.
+  const availability = useGigAvailability(gig);
 
   if (members.isPending) return <Loading label="Loading band members…" />;
   if (members.isError) {
@@ -274,7 +295,7 @@ function ManagerLineup({ gig }: { gig: GigDetail }) {
             {slot.pay_cents !== null && ` · ${formatMoney(slot.pay_cents)}`}
           </p>
           {gig.status === "potential" && slot.status !== "accepted" && (
-            <InviteForm gig={gig} slot={slot} players={players} />
+            <InviteForm gig={gig} slot={slot} players={players} availability={availability.data} />
           )}
         </li>
       ))}
@@ -286,9 +307,21 @@ interface InviteFormProps {
   gig: GigDetail;
   slot: SlotOut;
   players: MemberRead[];
+  availability?: GigAvailability;
 }
 
-function InviteForm({ gig, slot, players }: InviteFormProps) {
+/** "Busy: busy time Sun, Oct 18, 6:00 PM – 9:00 PM; playing Hub City Tap" for one player. */
+function busyReasons(player: PlayerAvailability): string {
+  return player.conflicts
+    .map((conflict) =>
+      conflict.kind === "gig"
+        ? `playing ${conflict.venue_name ?? "another gig"}`
+        : `marked busy ${formatRange(conflict.starts_at, conflict.ends_at)}`,
+    )
+    .join("; ");
+}
+
+function InviteForm({ gig, slot, players, availability }: InviteFormProps) {
   const id = useId();
   const roleLabel = ROLE_LABELS[slot.role];
   const [memberId, setMemberId] = useState(slot.member ? String(slot.member.id) : "");
@@ -306,9 +339,27 @@ function InviteForm({ gig, slot, players }: InviteFormProps) {
     onSuccess: onUpdated,
   });
 
-  // Members who usually play this role are listed first; anyone can be asked as a backup.
+  // Members who usually play this role come first, then those who list it as a secondary
+  // instrument. Anyone can still be asked as a backup.
+  const byId = new Map(availability?.players.map((player) => [player.member.id, player]));
   const usual = players.filter((player) => player.primary_role === slot.role);
-  const others = players.filter((player) => player.primary_role !== slot.role);
+  const secondary = players.filter(
+    (player) =>
+      player.primary_role !== slot.role && byId.get(player.id)?.secondary_role === slot.role,
+  );
+  const others = players.filter((player) => !usual.includes(player) && !secondary.includes(player));
+  // A busy player can still be invited: they decide whether they can make it.
+  const label = (player: MemberRead) =>
+    byId.get(player.id)?.busy ? `${player.name} · Busy` : player.name;
+  const chosen = byId.get(Number(memberId));
+  const busyNoteId = `${id}-busy`;
+  const busyNote = !availability
+    ? null
+    : availability.window_starts_at === null
+      ? "Add a date and time to see who's busy."
+      : chosen?.busy
+        ? `${chosen.member.name} is busy then: ${busyReasons(chosen)}. You can still invite them.`
+        : null;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -333,6 +384,7 @@ function InviteForm({ gig, slot, players }: InviteFormProps) {
           id={`${id}-member`}
           value={memberId}
           onChange={(event) => setMemberId(event.target.value)}
+          aria-describedby={busyNote ? busyNoteId : undefined}
           className="mt-1 w-full rounded border border-gray-400 px-3 py-2 focus-visible:outline-2 focus-visible:outline-brand-600"
         >
           <option value="">Choose a member</option>
@@ -340,7 +392,16 @@ function InviteForm({ gig, slot, players }: InviteFormProps) {
             <optgroup label={`Plays ${roleLabel}`}>
               {usual.map((player) => (
                 <option key={player.id} value={String(player.id)}>
-                  {player.name}
+                  {label(player)}
+                </option>
+              ))}
+            </optgroup>
+          )}
+          {secondary.length > 0 && (
+            <optgroup label={`Also plays ${roleLabel}`}>
+              {secondary.map((player) => (
+                <option key={player.id} value={String(player.id)}>
+                  {label(player)}
                 </option>
               ))}
             </optgroup>
@@ -349,12 +410,17 @@ function InviteForm({ gig, slot, players }: InviteFormProps) {
             <optgroup label="Backups">
               {others.map((player) => (
                 <option key={player.id} value={String(player.id)}>
-                  {player.name}
+                  {label(player)}
                 </option>
               ))}
             </optgroup>
           )}
         </select>
+        {busyNote && (
+          <p id={busyNoteId} className="mt-1 text-sm text-gray-700">
+            {busyNote}
+          </p>
+        )}
       </div>
       <TextField
         id={`${id}-pay`}

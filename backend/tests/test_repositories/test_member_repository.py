@@ -58,3 +58,11 @@ def test_get_by_email_ignores_case(db: Session, make: Factory) -> None:
 
     assert found is not None and found.id == riley.id
     assert MemberRepository(db).get_by_email("nobody@example.com") is None
+
+
+def test_players_are_everyone_but_the_manager_by_name(db: Session, make: Factory) -> None:
+    make.manager()
+    make.member(name="Riley Chen")
+    make.leader(name="Casey Morgan")
+
+    assert [m.name for m in MemberRepository(db).players()] == ["Casey Morgan", "Riley Chen"]
