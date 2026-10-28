@@ -5,16 +5,15 @@ import { api } from "../api/client";
 import { ApiError, errorMessage, unwrap } from "../api/errors";
 import type { MemberProfile, MemberProfileUpdate, Role } from "../api/types";
 import { ErrorMessage, Loading } from "../components/QueryStates";
+import {
+  FormField as Field,
+  pageHeading,
+  primaryButton,
+  secondaryButton,
+  sectionHeading,
+} from "../components/ui";
 import { ROLE_LABELS, ROLES } from "../format";
 import { useActingMember, useSession } from "../session";
-
-// Built to DESIGN.md: square corners, paper surfaces, Anton only for h1 and h2.
-const primaryButton =
-  "min-h-11 bg-brand-700 px-4 py-2 font-medium text-paper hover:bg-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:opacity-60";
-const secondaryButton =
-  "min-h-11 border border-gray-400 bg-paper px-4 py-2 font-medium text-ink hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600";
-const fieldClass =
-  "mt-1 block w-full border bg-paper px-3 py-2 text-ink focus-visible:outline-2 focus-visible:outline-brand-600";
 
 export function profileQueryKey(memberId: number) {
   return ["member", memberId] as const;
@@ -39,7 +38,7 @@ export function ProfilePage() {
 
   return (
     <section>
-      <h1 className="font-display text-2xl tracking-wide uppercase">Profile</h1>
+      <h1 className={pageHeading}>Profile</h1>
       <div className="mt-4">
         {profile.isPending && <Loading label="Loading your profile…" />}
         {profile.isError && (
@@ -204,7 +203,7 @@ function ProfileForm({ profile, onDone }: { profile: MemberProfile; onDone: () =
 
   return (
     <form onSubmit={submit} noValidate aria-labelledby={`${formId}-heading`}>
-      <h2 id={`${formId}-heading`} className="font-display text-lg tracking-wide uppercase">
+      <h2 id={`${formId}-heading`} className={sectionHeading}>
         Edit your details
       </h2>
       {otherError && (
@@ -310,50 +309,5 @@ function ProfileForm({ profile, onDone }: { profile: MemberProfile; onDone: () =
         </button>
       </div>
     </form>
-  );
-}
-
-interface InputProps {
-  id: string;
-  className: string;
-  "aria-invalid"?: true;
-  "aria-describedby"?: string;
-}
-
-interface FieldProps {
-  id: string;
-  label: string;
-  hint?: string;
-  error?: string;
-  input: (props: InputProps) => ReactNode;
-}
-
-/** A labelled control with an optional hint and an error tied to it by aria-describedby. */
-function Field({ id, label, hint, error, input }: FieldProps) {
-  const hintId = `${id}-hint`;
-  const errorId = `${id}-error`;
-  const describedBy = [hint ? hintId : null, error ? errorId : null].filter(Boolean).join(" ");
-  return (
-    <div>
-      <label htmlFor={id} className="block text-sm font-medium">
-        {label}
-      </label>
-      {input({
-        id,
-        className: `${fieldClass} ${error ? "border-brand-700 border-2" : "border-gray-400"}`,
-        "aria-invalid": error ? true : undefined,
-        "aria-describedby": describedBy || undefined,
-      })}
-      {hint && (
-        <p id={hintId} className="mt-1 text-sm text-gray-600">
-          {hint}
-        </p>
-      )}
-      {error && (
-        <p id={errorId} className="mt-1 text-sm font-medium text-brand-700">
-          {error}
-        </p>
-      )}
-    </div>
   );
 }

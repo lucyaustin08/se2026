@@ -5,7 +5,10 @@
 import { http, HttpResponse } from "msw";
 
 import type {
+  BusyTimeIn,
+  BusyTimeOut,
   ErrorResponse,
+  GigAvailability,
   GigCreate,
   GigDetail,
   GigPage,
@@ -17,6 +20,7 @@ import type {
   SlotOut,
 } from "../api/types";
 import {
+  allBusyTimes,
   allMembers,
   allProfiles,
   blueDoor,
@@ -48,11 +52,42 @@ function requireActingMember(request: Request) {
 // as the real backend would. Reset after every test (see test_setup.ts).
 let store = new Map<number, GigDetail>();
 let profiles = new Map<number, MemberProfile>();
+let busyTimes = new Map<number, BusyTimeOut>();
+let nextBusyTimeId = 900;
 
 export function resetMockData(): void {
   store = new Map(gigDetails.map((gig) => [gig.id, gig]));
   profiles = new Map(allProfiles.map((profile) => [profile.id, profile]));
+  busyTimes = new Map(allBusyTimes.map((busyTime) => [busyTime.id, busyTime]));
+  nextBusyTimeId = 900;
 }
+
+/** Everyone but the manager, available, for a gig's soundcheck-to-end window. */
+export function availabilityFor(gig: GigDetail): GigAvailability {
+  return {
+    window_starts_at: gig.soundcheck_at,
+    window_ends_at: gig.end_at,
+    players: [...profiles.values()]
+      .filter((profile) => !profile.is_manager)
+      .map((profile) => ({
+        member: { id: profile.id, name: profile.name },
+        primary_role: profile.primary_role,
+        secondary_role: profile.secondary_role,
+        busy: false,
+        conflicts: [],
+      })),
+  };
+}
+
+const busyTimeNotFound = () =>
+  HttpResponse.json(errorBody("busy_time_not_found", "That busy time doesn't exist."), {
+    status: 404,
+  });
+
+const notYourBusyTime = () =>
+  HttpResponse.json(errorBody("not_your_busy_time", "You can only change your own busy times."), {
+    status: 403,
+  });
 
 function actingProfile(request: Request): MemberProfile | undefined {
   return profiles.get(Number(request.headers.get("X-Acting-Member-Id")));
@@ -178,6 +213,67 @@ export const handlers = [
       status: 201,
       headers: { Location: "/api/v1/gigs/99" },
     });
+  }),
+
+  http.get("*/api/v1/gigs/:gigId/availability", ({ request, params }) => {
+    const refused = requireActingMember(request);
+    if (refused) return refused;
+    const gig = findGig(params.gigId);
+    return gig ? HttpResponse.json(availabilityFor(gig)) : notFound();
+  }),
+
+  http.get("*/api/v1/busy-times", ({ request }) => {
+    const refused = requireActingMember(request);
+    if (refused) return refused;
+    const actor = actingProfile(request);
+    const asked = new URL(request.url).searchParams.get("member_id");
+    const seesEveryone = actor?.is_manager || actor?.is_band_leader;
+    const memberId = asked ? Number(asked) : seesEveryone ? null : actor?.id;
+    const items = [...busyTimes.values()]
+      .filter((busyTime) => memberId === null || busyTime.member.id === memberId)
+      .sort((a, b) => a.starts_at.localeCompare(b.starts_at));
+    return HttpResponse.json(page(items));
+  }),
+
+  http.post("*/api/v1/busy-times", async ({ request }) => {
+    const refused = requireActingMember(request);
+    if (refused) return refused;
+    const actor = actingProfile(request);
+    const body = (await request.json()) as BusyTimeIn;
+    const created: BusyTimeOut = {
+      id: nextBusyTimeId++,
+      member: { id: actor?.id ?? 0, name: actor?.name ?? "" },
+      starts_at: body.starts_at,
+      ends_at: body.ends_at,
+      created_at: "2026-10-28T12:00:00Z",
+    };
+    busyTimes.set(created.id, created);
+    return HttpResponse.json(created, {
+      status: 201,
+      headers: { Location: `/api/v1/busy-times/${created.id}` },
+    });
+  }),
+
+  http.patch("*/api/v1/busy-times/:busyTimeId", async ({ request, params }) => {
+    const refused = requireActingMember(request);
+    if (refused) return refused;
+    const busyTime = busyTimes.get(Number(params.busyTimeId));
+    if (!busyTime) return busyTimeNotFound();
+    if (busyTime.member.id !== actingProfile(request)?.id) return notYourBusyTime();
+    const body = (await request.json()) as BusyTimeIn;
+    const changed = { ...busyTime, ...body };
+    busyTimes.set(changed.id, changed);
+    return HttpResponse.json(changed);
+  }),
+
+  http.delete("*/api/v1/busy-times/:busyTimeId", ({ request, params }) => {
+    const refused = requireActingMember(request);
+    if (refused) return refused;
+    const busyTime = busyTimes.get(Number(params.busyTimeId));
+    if (!busyTime) return busyTimeNotFound();
+    if (busyTime.member.id !== actingProfile(request)?.id) return notYourBusyTime();
+    busyTimes.delete(busyTime.id);
+    return new HttpResponse(null, { status: 204 });
   }),
 
   http.get("*/api/v1/gigs/:gigId", ({ request, params }) => {

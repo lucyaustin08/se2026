@@ -619,3 +619,57 @@ async def test_answer_with_a_non_numeric_slot_is_422(client: AsyncClient, make: 
 
     assert response.status_code == 422
     assert_error(response.json(), "validation_error")
+
+
+# ---- GET /gigs/{id}/availability ------------------------------------------------------------
+
+
+async def test_get_gig_availability(client: AsyncClient, make: Factory) -> None:
+    gig = make.gig(first_set_at=BLUE_DOOR_FIRST_SET)
+    riley = make.member(name="Riley Chen", role=Role.BASS)
+    make.busy_time(riley, BLUE_DOOR_FIRST_SET, BLUE_DOOR_FIRST_SET + timedelta(hours=1))
+
+    response = await client.get(
+        f"/api/v1/gigs/{gig.id}/availability", headers=headers_for(make.manager())
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert set(body) == {"window_starts_at", "window_ends_at", "players"}
+    assert body["window_starts_at"] == "2026-10-18T23:00:00Z"
+    (player,) = body["players"]
+    assert set(player) == {"member", "primary_role", "secondary_role", "busy", "conflicts"}
+    assert (player["member"]["name"], player["busy"]) == ("Riley Chen", True)
+    assert player["conflicts"][0]["kind"] == "busy_time"
+
+
+async def test_gig_availability_for_a_member_is_403(client: AsyncClient, make: Factory) -> None:
+    gig = make.gig(first_set_at=BLUE_DOOR_FIRST_SET)
+
+    response = await client.get(
+        f"/api/v1/gigs/{gig.id}/availability", headers=headers_for(make.member())
+    )
+
+    assert response.status_code == 403
+    assert_error(response.json(), "manager_or_band_leader_only")
+
+
+async def test_gig_availability_for_a_missing_gig_is_404(
+    client: AsyncClient, make: Factory
+) -> None:
+    response = await client.get(
+        "/api/v1/gigs/9999/availability", headers=headers_for(make.manager())
+    )
+
+    assert response.status_code == 404
+    assert_error(response.json(), "gig_not_found")
+
+
+async def test_gig_availability_with_a_non_numeric_id_is_422(
+    client: AsyncClient, make: Factory
+) -> None:
+    response = await client.get(
+        "/api/v1/gigs/abc/availability", headers=headers_for(make.manager())
+    )
+
+    assert response.status_code == 422

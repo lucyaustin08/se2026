@@ -36,5 +36,10 @@ class MemberRepository:
         )
         return list(self._session.scalars(stmt)), total
 
+    def players(self) -> list[Member]:
+        """Everyone who plays: every member except the manager, by name."""
+        stmt = select(Member).where(Member.is_manager.is_(False)).order_by(Member.name, Member.id)
+        return list(self._session.scalars(stmt))
+
     def count(self) -> int:
         return self._session.scalar(select(func.count()).select_from(Member)) or 0

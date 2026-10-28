@@ -89,3 +89,15 @@ export function toTimeInputValue(iso: string): string {
 export function localInputsToIso(date: string, time: string): string {
   return new Date(`${date}T${time}`).toISOString();
 }
+
+/**
+ * A stretch of time in the browser's time zone. On one day: "Sun, Oct 18, 2026, 6:00 PM – 9:00 PM".
+ * Across days: "Sun, Oct 18, 2026, 6:00 PM – Tue, Oct 20, 2026, 9:00 AM".
+ */
+export function formatRange(startIso: string, endIso: string): string {
+  const start = `${formatDate(startIso)}, ${formatTime(startIso)}`;
+  if (toDateInputValue(startIso) === toDateInputValue(endIso)) {
+    return `${start} – ${formatTime(endIso)}`;
+  }
+  return `${start} – ${formatDate(endIso)}, ${formatTime(endIso)}`;
+}

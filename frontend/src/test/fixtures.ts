@@ -1,4 +1,11 @@
-import type { GigDetail, GigListItem, MemberProfile, MemberRead, SlotOut } from "../api/types";
+import type {
+  BusyTimeOut,
+  GigDetail,
+  GigListItem,
+  MemberProfile,
+  MemberRead,
+  SlotOut,
+} from "../api/types";
 import type { ActingMember } from "../session";
 
 export const managerMember: MemberRead = {
@@ -235,3 +242,23 @@ export function restricted(gig: GigDetail): GigListItem {
 }
 
 export const gigDetails: GigDetail[] = [blueDoor, hubCity, readyToBook, rileyInvitation];
+
+/** Riley is busy 6:00–9:00 PM Eastern on Tue, Nov 10, 2026. */
+export const rileyBusy: BusyTimeOut = {
+  id: 301,
+  member: { id: riley.id, name: riley.name },
+  starts_at: "2026-11-10T23:00:00Z",
+  ends_at: "2026-11-11T02:00:00Z",
+  created_at: "2026-10-20T12:00:00Z",
+};
+
+/** Casey is away from Fri, Nov 13 at 9:00 AM to Sun, Nov 15 at 6:00 PM Eastern. */
+export const caseyAway: BusyTimeOut = {
+  id: 302,
+  member: { id: casey.id, name: casey.name },
+  starts_at: "2026-11-13T14:00:00Z",
+  ends_at: "2026-11-15T23:00:00Z",
+  created_at: "2026-10-20T12:00:00Z",
+};
+
+export const allBusyTimes: BusyTimeOut[] = [rileyBusy, caseyAway];

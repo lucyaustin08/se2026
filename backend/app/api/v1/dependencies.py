@@ -7,6 +7,7 @@ from fastapi import Depends, Header, Request
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.models.member import Member
+from app.services.availability import AvailabilityService
 from app.services.gigs import GigService
 from app.services.members import MemberService
 
@@ -36,6 +37,10 @@ def get_acting_member(
     return MemberService(db).get_actor(acting_member_id)
 
 
+def get_availability_service(db: DbSession) -> AvailabilityService:
+    return AvailabilityService(db)
+
+
 def get_gig_service(db: DbSession) -> GigService:
     return GigService(db)
 
@@ -45,5 +50,6 @@ def get_member_service(db: DbSession) -> MemberService:
 
 
 ActingMember = Annotated[Member, Depends(get_acting_member)]
+AvailabilityServiceDep = Annotated[AvailabilityService, Depends(get_availability_service)]
 GigServiceDep = Annotated[GigService, Depends(get_gig_service)]
 MemberServiceDep = Annotated[MemberService, Depends(get_member_service)]

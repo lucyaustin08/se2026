@@ -10,8 +10,10 @@ import {
   asSam,
   blueDoorForCasey,
   blueDoorForSam,
+  hubCity,
+  riley,
 } from "../test/fixtures";
-import { errorBody } from "../test/handlers";
+import { availabilityFor, errorBody } from "../test/handlers";
 import { renderApp } from "../test/render";
 import { server } from "../test/server";
 
@@ -193,22 +195,91 @@ describe("gig detail page", () => {
     expect(within(lineup).getByLabelText("Invite for Drums")).toBeInTheDocument();
   });
 
-  it("lists usual players first and everyone else as backups", async () => {
+  it("lists usual players first, then secondary players, then everyone else as backups", async () => {
     renderApp("/gigs/11", { as: asManager });
 
     const select = await screen.findByLabelText("Invite for Bass");
-    const groups = within(select).getAllByRole("group");
-    expect(groups.map((group) => group.getAttribute("label"))).toEqual(["Plays Bass", "Backups"]);
-    expect(
-      within(groups[0])
+    // Secondary instruments come with the gig's availability, which loads after the lineup.
+    await waitFor(() =>
+      expect(
+        within(select)
+          .getAllByRole("group")
+          .map((g) => g.getAttribute("label")),
+      ).toEqual(["Plays Bass", "Also plays Bass", "Backups"]),
+    );
+    const options = (group: number) =>
+      within(within(select).getAllByRole("group")[group])
         .getAllByRole("option")
-        .map((o) => o.textContent),
-    ).toEqual(["Riley Chen"]);
+        .map((o) => o.textContent);
+    expect(options(0)).toEqual(["Riley Chen"]);
+    expect(options(1)).toEqual(["Sam Rivera"]);
+    expect(options(2)).toEqual(["Casey Morgan"]);
+  });
+
+  it("marks busy players and says why, but still lets them be invited", async () => {
+    server.use(
+      http.get("*/api/v1/gigs/:gigId/availability", () => {
+        const availability = availabilityFor(hubCity);
+        return HttpResponse.json({
+          ...availability,
+          players: availability.players.map((player) =>
+            player.member.id === riley.id
+              ? {
+                  ...player,
+                  busy: true,
+                  conflicts: [
+                    {
+                      kind: "busy_time",
+                      starts_at: "2026-10-23T22:00:00Z",
+                      ends_at: "2026-10-24T01:00:00Z",
+                      gig_id: null,
+                      venue_name: null,
+                    },
+                    {
+                      kind: "gig",
+                      starts_at: "2026-10-23T23:00:00Z",
+                      ends_at: "2026-10-24T03:00:00Z",
+                      gig_id: 10,
+                      venue_name: "The Blue Door",
+                    },
+                  ],
+                }
+              : player,
+          ),
+        });
+      }),
+    );
+    const { user } = renderApp("/gigs/11", { as: asManager });
+
+    const select = await screen.findByLabelText("Invite for Bass");
+    const busyOption = await within(select).findByRole("option", { name: "Riley Chen · Busy" });
+    await user.selectOptions(select, busyOption);
+
+    expect(select).toHaveAccessibleDescription(
+      "Riley Chen is busy then: marked busy Fri, Oct 23, 2026, 6:00 PM – 9:00 PM; playing The Blue Door. You can still invite them.",
+    );
     expect(
-      within(groups[1])
-        .getAllByRole("option")
-        .map((o) => o.textContent),
-    ).toEqual(["Sam Rivera", "Casey Morgan"]);
+      within(select.closest("form") as HTMLElement).getByRole("button", { name: /invitation/ }),
+    ).toBeEnabled();
+  });
+
+  it("says busy marks need a date when the gig has none", async () => {
+    server.use(
+      http.get("*/api/v1/gigs/:gigId/availability", () =>
+        HttpResponse.json({
+          ...availabilityFor(hubCity),
+          window_starts_at: null,
+          window_ends_at: null,
+        }),
+      ),
+    );
+    renderApp("/gigs/11", { as: asManager });
+
+    const select = await screen.findByLabelText("Invite for Bass");
+
+    await waitFor(() =>
+      expect(select).toHaveAccessibleDescription("Add a date and time to see who's busy."),
+    );
   });
 
   it("sends an invitation with the member's pay", async () => {
