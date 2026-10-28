@@ -670,3 +670,29 @@ The overlap check that was private to the gig service is now `busy_window()`, so
 - Using the gig's load-in for overlaps. Not taken: the rest of the app treats a gig as running from soundcheck to the end.
 
 **Not built yet:** changing or cancelling a practice. Neither is in this sprint's stories.
+
+---
+
+## 2026-10-28 — The band calendar
+
+**Decision:** The Scheduling tab opens with a calendar of gigs, practices and busy times, built by the team with no calendar library (the stack contract allows none).
+- **Views:** a month view (whole Sunday-to-Saturday weeks) and a week view. The chosen day and view are kept in the address (`?date=2026-11-12&view=month`), so Back works and a day can be linked to.
+- **Picking a day:** clicking a day lists its details underneath. In the grid, only the chosen day is in the tab order, and the arrow keys move between days.
+- **On phones:** each day shows one lettered mark per entry (G, P, B) instead of text.
+- **Who sees what:** the same rules as everywhere else. The manager and band leader see all gigs, practices and busy times. Members see their gigs (others' booked gigs as "Not assigned"), the practices they're invited to, and only their own busy times. Cancelled gigs aren't shown.
+- **Telling kinds apart:** gigs have a solid poster-red edge, practices a solid navy edge, and busy times a dashed ink edge on the member's color. The day's details name each kind in words.
+- **Dates:** everything is in the browser's local time. The gig list gained `first_set_after` and `first_set_before` filters, so the calendar asks only for the dates it shows. Each kind loads at most 100 entries per view.
+
+**Alternatives considered:**
+- A calendar library such as FullCalendar. Not taken: it's outside the stack contract.
+- An hour-by-hour week grid. Not taken: an agenda per day is easier to read on a phone and to use with a screen reader, and the band's days rarely have more than a few entries.
+
+---
+
+## 2026-10-28 — Member colors on the calendar
+
+**Decision:** The team chose to give each player a color on the calendar, as an exception to `DESIGN.md`'s Three Inks Rule that applies **only to the calendar**. Fonts, text colors and everything else stay as they are. There are eight soft, print-style fills (`member-1` to `member-8` in `index.css`). Text on them is always ink, and they always come with the member's initials or name. Players get colors in the order they joined, so a member keeps theirs.
+
+**Alternatives considered:**
+- Only the three inks plus line patterns. Not taken by the team: too few combinations to tell five or more players apart at a glance.
+- Initials only. Not taken: the backlog asks for color-coded members.

@@ -1,6 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Query, Request, Response
+from pydantic import AwareDatetime
 
 from app.api.v1.dependencies import ActingMember, AvailabilityServiceDep, GigServiceDep
 from app.api.v1.responses import error_responses
@@ -34,6 +35,12 @@ def list_gigs(
     has_date: Annotated[
         bool | None, Query(description="true: only dated gigs. false: only undated drafts.")
     ] = None,
+    first_set_after: Annotated[
+        AwareDatetime | None, Query(description="Only gigs whose first set is at or after this.")
+    ] = None,
+    first_set_before: Annotated[
+        AwareDatetime | None, Query(description="Only gigs whose first set is before this.")
+    ] = None,
 ) -> GigPage:
     return service.list_gigs(
         actor,
@@ -43,6 +50,8 @@ def list_gigs(
         sort=sort,
         page=page,
         page_size=page_size,
+        first_set_after=first_set_after,
+        first_set_before=first_set_before,
     )
 
 

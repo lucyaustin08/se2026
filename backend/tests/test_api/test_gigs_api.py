@@ -673,3 +673,32 @@ async def test_gig_availability_with_a_non_numeric_id_is_422(
     )
 
     assert response.status_code == 422
+
+
+async def test_list_gigs_in_a_date_range(client: AsyncClient, make: Factory) -> None:
+    make.gig(venue_name="Before", first_set_at=BLUE_DOOR_FIRST_SET - timedelta(days=10))
+    make.gig(venue_name="Inside", first_set_at=BLUE_DOOR_FIRST_SET)
+
+    response = await client.get(
+        "/api/v1/gigs",
+        params={
+            "first_set_after": (BLUE_DOOR_FIRST_SET - timedelta(days=1)).isoformat(),
+            "first_set_before": (BLUE_DOOR_FIRST_SET + timedelta(days=1)).isoformat(),
+        },
+        headers=headers_for(make.manager()),
+    )
+
+    assert response.status_code == 200
+    assert [g["venue_name"] for g in response.json()["items"]] == ["Inside"]
+
+
+async def test_list_gigs_with_a_date_without_a_time_zone_is_422(
+    client: AsyncClient, make: Factory
+) -> None:
+    response = await client.get(
+        "/api/v1/gigs",
+        params={"first_set_after": "2026-10-19T00:00:00"},
+        headers=headers_for(make.manager()),
+    )
+
+    assert response.status_code == 422

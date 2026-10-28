@@ -76,4 +76,18 @@
   --color-status-potential: #e2a72e;
   --color-status-booked: #b8321e;
   --color-status-cancelled: #5e554c;
+
+  /*
+   * Member colors: for the calendar only (DECISIONS.md, "Member colors on the calendar").
+   * A deliberate exception to the Three Inks Rule. Soft, printed-paper tints that ink text
+   * reads clearly on, and always shown with the member's initials or name.
+   */
+  --color-member-1: #c6d4b4; /* sage */
+  --color-member-2: #b8cde2; /* sky */
+  --color-member-3: #ebc3ab; /* clay */
+  --color-member-4: #d3c7e6; /* lilac */
+  --color-member-5: #ecda9f; /* wheat */
+  --color-member-6: #ecc1cb; /* rose */
+  --color-member-7: #acd8ce; /* sea glass */
+  --color-member-8: #d4ccbe; /* stone */
 }

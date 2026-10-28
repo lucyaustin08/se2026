@@ -121,7 +121,10 @@ A printed three-ink palette (red, mustard, navy) on warm paper, with a family of
 - **Mustard** (`mustard`): the pending-gig status mark. **It fails contrast as text on paper.** Use it only as a fill or border, with ink text on top.
 
 ### Tertiary
-- **Navy** (`navy`): defined, but nothing uses it yet. It passes contrast as text on paper and as a fill under paper-colored text. Don't spread it around before a feature gives it a job.
+- **Navy** (`navy`): the edge of a practice on the calendar (a solid 4px left border), the way poster red marks a gig. It passes contrast as text on paper and as a fill under paper-colored text. Don't spread it beyond practices without a reason.
+
+### Member colors (calendar only)
+- **`member-1` to `member-8`** (sage, sky, clay, lilac, wheat, rose, sea glass, stone): soft fills that tell members' busy times apart on the calendar. **They are an exception to the Three Inks Rule, for the calendar only.** Text on them is always ink, they always carry the member's initials or name, and busy times also have a dashed ink edge, so nothing depends on color alone. Players get colors in the order they joined, and the manager, who doesn't play, has none. Don't use them anywhere else.
 
 ### Neutral
 - **Paper** (`paper`): the page background, and the fill of rows, inputs and secondary buttons.
@@ -132,7 +135,7 @@ A printed three-ink palette (red, mustard, navy) on warm paper, with a family of
 - **Rules** (`rule-light`, `rule`, `rule-strong`): borders from light to strong. Use them for dividers, row edges and input edges. **They are not for text.** `rule-strong` is borderline at 3.5:1. Its Tailwind aliases are `gray-200`, `gray-300` and `gray-400`.
 
 ### Named Rules
-**The Three Inks Rule.** Red, mustard and navy are the only hues. Don't add a fourth accent, and don't use Tailwind's default palette (`red-*`, `blue-*`, `green-*`). The error box still uses Tailwind's default reds and has to move to this palette in the restyle.
+**The Three Inks Rule.** Red, mustard and navy are the only hues, apart from the calendar's member colors. Don't add a fourth accent, and don't use Tailwind's default palette (`red-*`, `blue-*`, `green-*`). The error box still uses Tailwind's default reds and has to move to this palette in the restyle.
 
 **The Paper Not White Rule.** Surfaces are `paper` or `paper-shade`. Never `#fff` and never a cool gray.
 
