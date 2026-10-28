@@ -1,10 +1,79 @@
 @import "tailwindcss";
 
-/* Design tokens. Tailwind v4 turns these into utilities such as bg-brand-600. */
+/*
+ * Roadhouse design foundation: the "Gig Poster" direction the team chose.
+ * Colors, fonts and status colors live here so every page shares one look.
+ * Use these names in new code instead of typing hex values or plain grays.
+ */
+
+/* Fonts are stored in public/fonts (SIL Open Font License, see the LICENSE files there). */
+@font-face {
+  font-family: "Anton";
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/anton-400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Archivo";
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/archivo-400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Archivo";
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/archivo-500.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Archivo";
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/archivo-600.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Archivo";
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/archivo-700.woff2") format("woff2");
+}
+
+/* Design tokens. Tailwind v4 turns these into utilities such as bg-brand-600 or font-display. */
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --color-brand-50: oklch(0.97 0.02 60);
-  --color-brand-600: oklch(0.56 0.16 45);
-  --color-brand-700: oklch(0.48 0.15 45);
-  --color-ink-900: oklch(0.21 0.02 260);
+  /* Fonts: font-display for headings, font-sans (the default) for everything else */
+  --font-display: "Anton", "Arial Narrow", sans-serif;
+  --font-sans: "Archivo", ui-sans-serif, system-ui, sans-serif;
+
+  /* Gig Poster palette: use these names in new work */
+  --color-paper: #f4ecdd;
+  --color-ink: #1e1a17;
+  --color-ink-faded: #5e554c;
+  --color-poster-red: #b8321e;
+  --color-mustard: #e2a72e;
+  --color-navy: #22355e;
+
+  /* Existing names, re-pointed so current pages pick up the new look */
+  --color-brand-50: #f6ded6; /* light red tint (active nav tab) */
+  --color-brand-600: #b8321e; /* poster red (main buttons) */
+  --color-brand-700: #8e2414; /* darker red (hover, headings, links) */
+  --color-ink-900: #1e1a17; /* main text */
+
+  /* Grays warmed to sit on paper. Text shades 600 and 700 pass contrast on every background here. */
+  --color-gray-100: #ebe1cf;
+  --color-gray-200: #ddd2bf;
+  --color-gray-300: #c9bca6;
+  --color-gray-400: #a8998a;
+  --color-gray-500: #8a7b6c;
+  --color-gray-600: #5e554c;
+  --color-gray-700: #4a423b;
+
+  /* Gig status colors. Always pair them with a label and a style (dashed, solid, struck through). */
+  --color-status-potential: #e2a72e;
+  --color-status-booked: #b8321e;
+  --color-status-cancelled: #5e554c;
 }

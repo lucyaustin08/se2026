@@ -527,3 +527,17 @@ They cover happy paths only, per the testing standard. Refusals and edge cases s
 **Alternatives considered:**
 - Cucumber-style `.feature` files. Not taken: they aren't in the course stack. Playwright is, and naming each test after its story keeps the mapping clear.
 - Running against MSW mocks. Not taken: acceptance tests should prove the real frontend, backend and database work together.
+
+---
+
+## 2026-10-21 — Design foundation: "Gig Poster" look, fonts stored in the repo
+
+**Decision:** The team picked the "Gig Poster" direction from three mood boards. Its colors, fonts and status colors are defined once in `frontend/src/styles/index.css`. The existing color names (`brand-*`, `gray-*`, `ink-900`) now point at the new palette, so current pages change without edits. New code uses the named colors (`paper`, `ink`, `poster-red`, `mustard`, `navy`, `status-*`) and `font-display` for headings.
+
+The fonts (Anton for headings, Archivo for text) are stored as files in `frontend/public/fonts`, with their SIL Open Font License files.
+
+**Alternatives considered:**
+- Font packages such as `@fontsource/anton`. Not taken: they add dependencies outside the stack contract, which needs instructor approval. The font files are the same either way.
+- A Google Fonts link. Not taken: the app would depend on an outside service every time it loads.
+
+**Still to do:** the paper background, square corners and headings in Anton, when the shared layout and components are restyled.
