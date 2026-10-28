@@ -19,6 +19,7 @@ import type {
   MemberProfileUpdate,
   PracticeCreate,
   PracticeOut,
+  PracticeSuggestions,
   SlotOut,
 } from "../api/types";
 import {
@@ -27,6 +28,7 @@ import {
   allProfiles,
   blueDoor,
   garagePractice,
+  practiceSuggestions,
   gigDetails,
   hubCity,
   toListItem,
@@ -244,6 +246,12 @@ export const handlers = [
     if (refused) return refused;
     const gig = findGig(params.gigId);
     return gig ? HttpResponse.json(availabilityFor(gig)) : notFound();
+  }),
+
+  http.get("*/api/v1/practices/suggestions", ({ request }) => {
+    const refused = requireActingMember(request);
+    if (refused) return refused;
+    return HttpResponse.json<PracticeSuggestions>(practiceSuggestions);
   }),
 
   http.get("*/api/v1/practices", ({ request }) => {

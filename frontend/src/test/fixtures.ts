@@ -5,6 +5,7 @@ import type {
   MemberProfile,
   MemberRead,
   PracticeOut,
+  PracticeSuggestions,
   SlotOut,
 } from "../api/types";
 import type { ActingMember } from "../session";
@@ -291,4 +292,29 @@ export const garagePractice: PracticeOut = {
   ],
   my_status: null,
   created_at: "2026-10-20T12:00:00Z",
+};
+
+/** Two suggested times: everyone on Thu, Nov 19; Riley can't make Sat, Nov 21. */
+export const practiceSuggestions: PracticeSuggestions = {
+  searched_from: "2026-11-11",
+  searched_to: "2026-11-25",
+  suggestions: [
+    {
+      starts_at: "2026-11-19T23:00:00Z",
+      ends_at: "2026-11-20T02:00:00Z",
+      available: [
+        { id: riley.id, name: riley.name },
+        { id: casey.id, name: casey.name },
+      ],
+      unavailable: [],
+      same_day_gig: null,
+    },
+    {
+      starts_at: "2026-11-21T22:00:00Z",
+      ends_at: "2026-11-22T01:00:00Z",
+      available: [{ id: casey.id, name: casey.name }],
+      unavailable: [{ id: riley.id, name: riley.name }],
+      same_day_gig: "Hub City Tap on Sat, Nov 21 at 11:30 PM",
+    },
+  ],
 };

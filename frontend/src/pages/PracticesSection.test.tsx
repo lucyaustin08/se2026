@@ -246,3 +246,116 @@ describe("practices on the scheduling page", () => {
     expect(within(dialog).getByRole("button", { name: "Schedule practice" })).toBeInTheDocument();
   });
 });
+
+describe("finding a practice time", () => {
+  it("asks for invitees before it can search", async () => {
+    const { dialog } = await openScheduleDialog();
+
+    const finder = within(dialog).getByRole("region", { name: "Find a time" });
+    expect(within(finder).getByText("Choose who's invited first.")).toBeInTheDocument();
+    expect(within(finder).getByRole("button", { name: "Find times" })).toBeDisabled();
+  });
+
+  it("suggests times with who can't come, and fills in the one picked", async () => {
+    let asked: URLSearchParams | undefined;
+    server.use(
+      http.get("*/api/v1/practices/suggestions", ({ request }) => {
+        asked = new URL(request.url).searchParams;
+        return undefined;
+      }),
+    );
+    const { user, dialog } = await openScheduleDialog();
+
+    await user.click(within(dialog).getByRole("checkbox", { name: /Riley Chen/ }));
+    await user.click(within(dialog).getByRole("checkbox", { name: /Casey Morgan/ }));
+    await user.selectOptions(within(dialog).getByLabelText("Length"), "2 hours");
+    const finder = within(dialog).getByRole("region", { name: "Find a time" });
+    const earliest = within(finder).getByLabelText("No earlier than");
+    await user.clear(earliest);
+    await user.type(earliest, "18:00");
+    await user.click(within(finder).getByRole("button", { name: "Find times" }));
+
+    const list = await within(finder).findByRole("list", { name: "Suggested times, best first" });
+    const [first, second] = within(list).getAllByRole("listitem");
+    expect(first).toHaveTextContent("Thu, Nov 19, 2026, 6:00 PM – 9:00 PM");
+    expect(first).toHaveTextContent("Everyone can come.");
+    expect(second).toHaveTextContent(
+      "1 of 2 can come. Can't: Riley Chen. Gig that day: Hub City Tap on Sat, Nov 21 at 11:30 PM.",
+    );
+    expect(asked?.getAll("member_ids")).toEqual(["4", "3"]);
+    expect([asked?.get("length_minutes"), asked?.get("earliest"), asked?.get("latest")]).toEqual([
+      "120",
+      "18:00",
+      "23:00",
+    ]);
+
+    await user.click(
+      within(first).getByRole("button", { name: "Use Thu, Nov 19, 2026, 6:00 PM – 9:00 PM" }),
+    );
+
+    expect(within(dialog).getByLabelText("Date")).toHaveValue("2026-11-19");
+    expect(within(dialog).getByLabelText("Start time")).toHaveValue("18:00");
+    expect(within(dialog).getByLabelText("Date")).toHaveFocus();
+  });
+
+  it("won't search hours too short for the practice", async () => {
+    let searched = false;
+    server.use(
+      http.get("*/api/v1/practices/suggestions", () => {
+        searched = true;
+        return undefined;
+      }),
+    );
+    const { user, dialog } = await openScheduleDialog();
+
+    await user.click(within(dialog).getByRole("checkbox", { name: /Riley Chen/ }));
+    const finder = within(dialog).getByRole("region", { name: "Find a time" });
+    const latest = within(finder).getByLabelText("Done by");
+    await user.clear(latest);
+    await user.type(latest, "19:00");
+    await user.click(within(finder).getByRole("button", { name: "Find times" }));
+
+    expect(within(finder).getByLabelText("No earlier than")).toHaveAccessibleDescription(
+      "Leave room for the whole practice between these times.",
+    );
+    expect(searched).toBe(false);
+  });
+
+  it("says when gigs fill every time", async () => {
+    server.use(
+      http.get("*/api/v1/practices/suggestions", () =>
+        HttpResponse.json({
+          searched_from: "2026-11-11",
+          searched_to: "2026-11-25",
+          suggestions: [],
+        }),
+      ),
+    );
+    const { user, dialog } = await openScheduleDialog();
+
+    await user.click(within(dialog).getByRole("checkbox", { name: /Riley Chen/ }));
+    const finder = within(dialog).getByRole("region", { name: "Find a time" });
+    await user.click(within(finder).getByRole("button", { name: "Find times" }));
+
+    expect(
+      await within(finder).findByText(
+        "Gigs fill every one of those times. Try different hours or a shorter practice.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows a failed search", async () => {
+    server.use(
+      http.get("*/api/v1/practices/suggestions", () =>
+        HttpResponse.json(errorBody("internal_error", "Something broke."), { status: 500 }),
+      ),
+    );
+    const { user, dialog } = await openScheduleDialog();
+
+    await user.click(within(dialog).getByRole("checkbox", { name: /Riley Chen/ }));
+    const finder = within(dialog).getByRole("region", { name: "Find a time" });
+    await user.click(within(finder).getByRole("button", { name: "Find times" }));
+
+    expect(await within(finder).findByRole("alert")).toHaveTextContent("Something broke.");
+  });
+});

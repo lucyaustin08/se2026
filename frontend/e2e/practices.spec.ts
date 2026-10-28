@@ -20,10 +20,19 @@ test.describe("Story: the band leader schedules a practice and invited members a
       .click();
     await page.getByRole("button", { name: "Schedule practice" }).click();
     const dialog = page.getByRole("dialog", { name: "Schedule practice" });
+    await dialog.getByRole("checkbox", { name: /Taylor Brooks/ }).check();
+
+    // The app suggests times one to three weeks ahead.
+    const finder = dialog.getByRole("region", { name: "Find a time" });
+    await finder.getByRole("button", { name: "Find times" }).click();
+    await expect(
+      finder.getByRole("list", { name: "Suggested times, best first" }).getByRole("listitem"),
+    ).not.toHaveCount(0);
+
+    // This story schedules on its own far-off date, clear of every other story's gigs.
     await dialog.getByLabel("Date").fill(day);
     await dialog.getByLabel("Start time").fill("18:00");
     await dialog.getByLabel("Location").fill(location);
-    await dialog.getByRole("checkbox", { name: /Taylor Brooks/ }).check();
     await dialog.getByRole("button", { name: "Schedule practice" }).click();
     await expect(dialog).toHaveCount(0);
 

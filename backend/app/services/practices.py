@@ -1,6 +1,6 @@
 """Scheduling practices, and members answering their invitations."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -9,6 +9,7 @@ from app.models.enums import InvitationStatus
 from app.models.gig import Gig
 from app.models.member import Member
 from app.models.practice import Practice, PracticeInvitation
+from app.repositories.availability import BusyTimeRepository
 from app.repositories.gigs import GigRepository
 from app.repositories.members import MemberRepository
 from app.repositories.practices import PracticeRepository
@@ -19,10 +20,19 @@ from app.schemas.practices import (
     PracticeOut,
     PracticePage,
     PracticeSort,
+    PracticeSuggestionQuery,
+    PracticeSuggestions,
+    SuggestedTime,
 )
 from app.services.band_time import BAND_TIME_ZONE, band_date
 from app.services.gigs import busy_window
 from app.services.permissions import require_runs_the_band, runs_the_band
+
+# Practices are usually planned one to three weeks ahead (product owner), so that's where
+# suggestions come from.
+SUGGEST_FROM_DAYS = 7
+SUGGEST_TO_DAYS = 21
+SUGGESTION_STEP_MINUTES = 30
 
 # How far either side of a practice to look for gigs. A gig's soundcheck and end can be up to
 # 12 hours from its first set, and "same day" needs the whole local day.
@@ -35,6 +45,7 @@ class PracticeService:
         self._practices = PracticeRepository(session)
         self._gigs = GigRepository(session)
         self._members = MemberRepository(session)
+        self._busy_times = BusyTimeRepository(session)
 
     # ---- Reading -----------------------------------------------------------------------------
 
@@ -124,6 +135,90 @@ class PracticeService:
         self._session.refresh(practice)
         return _practice_out(actor, practice)
 
+    # ---- Finding a time ----------------------------------------------------------------------
+
+    def suggest_times(
+        self, actor: Member, query: PracticeSuggestionQuery, *, today: date | None = None
+    ) -> PracticeSuggestions:
+        """The best time on each day one to three weeks ahead, best days first.
+
+        A time is never suggested if it overlaps a booked or pending gig. An invitee can't
+        come if one of their busy times, or another practice they haven't declined, overlaps.
+        """
+        require_runs_the_band(actor, "find practice times")
+        invitees = self._invitees(query.member_ids)
+        today = today or band_date(datetime.now(UTC))
+        first_day = today + timedelta(days=SUGGEST_FROM_DAYS)
+        last_day = today + timedelta(days=SUGGEST_TO_DAYS)
+        search_start = _band_moment(first_day, query.earliest)
+        search_end = _band_moment(last_day, query.latest)
+
+        gigs = self._gigs.dated_between(
+            search_start - _GIG_SEARCH_MARGIN, search_end + _GIG_SEARCH_MARGIN
+        )
+        gig_windows = [window for gig in gigs if (window := busy_window(gig)) is not None]
+        busy = {
+            member.id: self._member_busy_periods(member, search_start, search_end)
+            for member in invitees
+        }
+        length = timedelta(minutes=query.length_minutes)
+        earliest = query.earliest.hour * 60 + query.earliest.minute
+        latest = query.latest.hour * 60 + query.latest.minute
+
+        suggestions: list[SuggestedTime] = []
+        for offset in range((last_day - first_day).days + 1):
+            day = first_day + timedelta(days=offset)
+            best: SuggestedTime | None = None
+            for minute in range(
+                earliest, latest - query.length_minutes + 1, SUGGESTION_STEP_MINUTES
+            ):
+                start = _band_moment(day, time(minute // 60, minute % 60))
+                end = start + length
+                if any(s < end and start < e for s, e in gig_windows):
+                    continue
+                free = [
+                    m for m in invitees if not any(s < end and start < e for s, e in busy[m.id])
+                ]
+                if best is None or len(free) > len(best.available):
+                    best = SuggestedTime(
+                        starts_at=start,
+                        ends_at=end,
+                        available=[MemberSummary.model_validate(m) for m in free],
+                        unavailable=[
+                            MemberSummary.model_validate(m) for m in invitees if m not in free
+                        ],
+                        same_day_gig=next(
+                            (
+                                _describe(gig)
+                                for gig in gigs
+                                if gig.first_set_at is not None
+                                and band_date(gig.first_set_at) == day
+                            ),
+                            None,
+                        ),
+                    )
+            if best is not None:
+                suggestions.append(best)
+
+        suggestions.sort(key=lambda s: (-len(s.available), s.starts_at))
+        return PracticeSuggestions(
+            searched_from=first_day, searched_to=last_day, suggestions=suggestions
+        )
+
+    def _member_busy_periods(
+        self, member: Member, start: datetime, end: datetime
+    ) -> list[tuple[datetime, datetime]]:
+        """When a member can't come to a practice: their busy times, and other practices they
+        haven't declined."""
+        periods = [
+            (b.starts_at, b.ends_at) for b in self._busy_times.overlapping(member.id, start, end)
+        ]
+        periods += [
+            (p.starts_at, p.ends_at)
+            for p in self._practices.overlapping_for_member(member.id, start, end)
+        ]
+        return periods
+
     # ---- Answering ---------------------------------------------------------------------------
 
     def answer(self, actor: Member, practice_id: int, *, accept: bool) -> PracticeOut:
@@ -169,6 +264,11 @@ class PracticeService:
         ):
             raise NotFoundError("That practice doesn't exist.", code="practice_not_found")
         return practice
+
+
+def _band_moment(day: date, at: time) -> datetime:
+    """A local wall-clock time on a day at the band's location, as a UTC moment."""
+    return datetime.combine(day, at, tzinfo=BAND_TIME_ZONE).astimezone(UTC)
 
 
 def _describe(gig: Gig) -> str:

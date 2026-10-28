@@ -5,6 +5,7 @@ Notable changes to Roadhouse, newest first.
 ## Unreleased
 
 ### Added
+- Find a time: when scheduling a practice, the app suggests the best time on each day one to three weeks ahead, never over a gig, and names who can't come.
 - Calendar on the Scheduling tab: month and week views of gigs, practices and busy times, with each player in their own color plus initials, a day-by-day list, and arrow-key navigation.
 - Practices: the manager and band leader schedule one-time practices and invite any group of players. A practice can't overlap a gig, and one on a gig day needs confirming. Members accept or decline.
 - Scheduling: members add, change and delete one-off busy times in a pop-up. The manager and band leader see everyone's. The invite list marks busy players and says why, and lists players who play the role as a secondary instrument.
