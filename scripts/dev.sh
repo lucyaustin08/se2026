@@ -6,7 +6,7 @@
 # Works in GitHub Codespaces, where it also starts the codespace's own PostgreSQL. Anywhere
 # else, set DATABASE_URL to a PostgreSQL database you run yourself and it's used instead.
 # To start over with fresh sample data in a codespace:
-#   sudo -u postgres dropdb roadhouse   (then run this script again)
+#   sudo runuser -u postgres -- dropdb roadhouse   (then run this script again)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

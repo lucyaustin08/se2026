@@ -14,13 +14,19 @@ if ! command -v pg_isready > /dev/null; then
   exit 1
 fi
 
+# Run a command as the postgres user. The dev container lets us run commands as root without
+# a password, but not as other users, so go through root with runuser instead of sudo -u.
+as_postgres() {
+  sudo runuser -u postgres -- "$@"
+}
+
 sudo service postgresql start > /dev/null
 for _ in $(seq 1 30); do
-  sudo -u postgres pg_isready --quiet && break
+  as_postgres pg_isready --quiet && break
   sleep 1
 done
 
-sudo -u postgres psql --quiet --set ON_ERROR_STOP=1 <<'SQL'
+as_postgres psql --quiet --set ON_ERROR_STOP=1 <<'SQL'
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'roadhouse') THEN
@@ -31,8 +37,8 @@ END
 $$;
 SQL
 
-if ! sudo -u postgres psql --tuples-only --no-align \
+if ! as_postgres psql --tuples-only --no-align \
   --command "SELECT 1 FROM pg_database WHERE datname = 'roadhouse'" | grep -q 1; then
-  sudo -u postgres createdb --owner roadhouse roadhouse
+  as_postgres createdb --owner roadhouse roadhouse
 fi
 echo "PostgreSQL is running, with the roadhouse database."

@@ -26,7 +26,7 @@ Everything runs in the browser. You don't need Docker, Python or Node on your co
 
 5. When a pop-up says the app is running on port 5173, click **Open in Browser**. If you miss it, open the **Ports** tab and click the globe icon next to "Roadhouse app".
 
-Stop the app with `Ctrl+C`. The script starts the codespace's own PostgreSQL database each time. To start over with fresh sample data, run `sudo -u postgres dropdb roadhouse`, then run the script again.
+Stop the app with `Ctrl+C`. The script starts the codespace's own PostgreSQL database each time. To start over with fresh sample data, run `sudo runuser -u postgres -- dropdb roadhouse`, then run the script again.
 
 Codespaces are free for students up to a monthly limit, through [GitHub Education](https://education.github.com). Stop your codespace when you're done (**Code → Codespaces → ⋯ → Stop codespace**) so it doesn't use up your hours.
 
