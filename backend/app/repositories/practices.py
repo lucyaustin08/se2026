@@ -1,10 +1,11 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
+from app.models.enums import InvitationStatus
 from app.models.practice import Practice, PracticeInvitation
-from app.schemas.practices import PracticeSort
+from app.schemas.practices import MAX_PRACTICE_MINUTES, PracticeSort
 
 _ORDER_BY = {
     PracticeSort.STARTS_AT: Practice.starts_at.asc(),
@@ -59,3 +60,20 @@ class PracticeRepository:
             .offset((page - 1) * page_size)
         )
         return list(self._session.scalars(stmt)), total
+
+    def overlapping_for_member(
+        self, member_id: int, start: datetime, end: datetime
+    ) -> list[Practice]:
+        """Practices the member is invited to or coming to (not declined) that overlap
+        [start, end). Touching ends don't count."""
+        stmt = select(Practice).where(
+            Practice.starts_at < end,
+            # No practice is longer than the maximum length, so nothing earlier can overlap.
+            Practice.starts_at > start - timedelta(minutes=MAX_PRACTICE_MINUTES),
+            Practice.invitations.any(
+                (PracticeInvitation.member_id == member_id)
+                & (PracticeInvitation.status != InvitationStatus.DECLINED)
+            ),
+        )
+        # The end is computed from the length, so the last check happens here, not in SQL.
+        return [p for p in self._session.scalars(stmt) if p.ends_at > start]

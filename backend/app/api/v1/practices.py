@@ -6,7 +6,14 @@ from pydantic import AwareDatetime
 from app.api.v1.dependencies import ActingMember, PracticeServiceDep
 from app.api.v1.responses import error_responses
 from app.schemas.pagination import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
-from app.schemas.practices import PracticeCreate, PracticeOut, PracticePage, PracticeSort
+from app.schemas.practices import (
+    PracticeCreate,
+    PracticeOut,
+    PracticePage,
+    PracticeSort,
+    PracticeSuggestionQuery,
+    PracticeSuggestions,
+)
 
 router = APIRouter(prefix="/practices", tags=["practices"])
 
@@ -59,6 +66,26 @@ def schedule_practice(
     practice = service.schedule(actor, body)
     response.headers["Location"] = request.app.url_path_for("get_practice", practice_id=practice.id)
     return practice
+
+
+# Declared before "/{practice_id}", so "suggestions" isn't read as a practice id.
+@router.get(
+    "/suggestions",
+    response_model=PracticeSuggestions,
+    responses=error_responses(403, 409, 422),
+)
+def suggest_practice_times(
+    query: Annotated[PracticeSuggestionQuery, Query()],
+    actor: ActingMember,
+    service: PracticeServiceDep,
+) -> PracticeSuggestions:
+    """The best practice time on each day one to three weeks ahead (manager or band leader).
+
+    Pass `member_ids` once per invitee. `earliest` and `latest` are local clock times
+    (HH:MM) bounding the practice. Times that overlap a booked or pending gig are never
+    suggested.
+    """
+    return service.suggest_times(actor, query)
 
 
 @router.get("/{practice_id}", response_model=PracticeOut, responses=error_responses(403, 404, 422))

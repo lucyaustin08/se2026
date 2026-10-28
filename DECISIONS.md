@@ -696,3 +696,21 @@ The overlap check that was private to the gig service is now `busy_window()`, so
 **Alternatives considered:**
 - Only the three inks plus line patterns. Not taken by the team: too few combinations to tell five or more players apart at a glance.
 - Initials only. Not taken: the backlog asks for color-coded members.
+
+---
+
+## 2026-10-28 — Finding a practice time
+
+**Decision:** `GET /practices/suggestions` (manager or band leader) suggests practice times. The scheduler chooses who's invited (`member_ids`, repeated), the length, and the hours of the day to consider (`earliest`, `latest`, local clock times, default 5:00 to 11:00 PM). It's computed on every request, never stored.
+- **Days searched:** 7 to 21 days from today in the band's time zone, because the product owner said practices are usually planned one to three weeks ahead.
+- **Times tried:** starts every 30 minutes, built from the local wall clock with `zoneinfo`, so 5:00 PM stays 5:00 PM across daylight saving changes.
+- **Never suggested:** a time that overlaps a booked or pending gig's soundcheck-to-end window.
+- **Who can come:** an invitee can't come if one of their busy times, or another practice they haven't declined, overlaps.
+- **Ranking:** each day offers its best time (most invitees free, then earliest), and days are ranked the same way. Each suggestion names who can't come, and flags a gig earlier or later that day.
+- **In the app:** "Find a time" sits in the Schedule practice pop-up and shows the top eight. "Use this time" fills in the date and start time. It doesn't schedule anything, so the scheduler still decides, and the same-day warning still applies.
+- **Order of checks:** the hours must leave room for the practice (`422`). An unknown member is a `409`, as when scheduling.
+
+**Alternatives considered:**
+- Every possible time, not one per day. Not taken: dozens of near-identical half-hour slots on one evening bury the choice between days, which is the real decision.
+- Only suggesting times when everyone can come. Not taken: the product owner said a smaller group can still meet, and asked for the times that work for the most people.
+- Recurring busy times aren't built yet. When they are, they join the same per-member check (`_member_busy_periods`), so suggestions and the invite list stay in step.

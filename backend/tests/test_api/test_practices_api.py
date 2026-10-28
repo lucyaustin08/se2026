@@ -254,3 +254,72 @@ async def test_answer_with_a_non_numeric_id_is_422(client: AsyncClient, make: Fa
     )
 
     assert response.status_code == 422
+
+
+# ---- GET /practices/suggestions ------------------------------------------------------------
+
+
+async def test_suggest_practice_times(client: AsyncClient, make: Factory) -> None:
+    riley = make.member()
+
+    response = await client.get(
+        "/api/v1/practices/suggestions",
+        params={"member_ids": [riley.id], "earliest": "18:00", "latest": "22:00"},
+        headers=headers_for(make.manager()),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert set(body) == {"searched_from", "searched_to", "suggestions"}
+    assert len(body["suggestions"]) == 15
+    assert set(body["suggestions"][0]) == {
+        "starts_at",
+        "ends_at",
+        "available",
+        "unavailable",
+        "same_day_gig",
+    }
+
+
+async def test_suggest_as_a_member_is_403(client: AsyncClient, make: Factory) -> None:
+    riley = make.member()
+
+    response = await client.get(
+        "/api/v1/practices/suggestions",
+        params={"member_ids": [riley.id]},
+        headers=headers_for(riley),
+    )
+
+    assert response.status_code == 403
+
+
+async def test_suggest_for_an_unknown_member_is_409(client: AsyncClient, make: Factory) -> None:
+    response = await client.get(
+        "/api/v1/practices/suggestions",
+        params={"member_ids": [9999]},
+        headers=headers_for(make.manager()),
+    )
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "unknown_member"
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        {},
+        {"member_ids": [1], "earliest": "21:00", "latest": "22:00"},
+        {"member_ids": [1], "earliest": "evening"},
+        {"member_ids": [1], "length_minutes": 5},
+    ],
+    ids=["nobody", "hours too short", "not a time", "too short"],
+)
+async def test_suggest_with_invalid_parameters_is_422(
+    client: AsyncClient, make: Factory, params: dict[str, object]
+) -> None:
+    response = await client.get(
+        "/api/v1/practices/suggestions", params=params, headers=headers_for(make.manager())
+    )
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "validation_error"

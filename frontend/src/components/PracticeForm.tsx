@@ -2,6 +2,7 @@ import { useId, useState, type FormEvent } from "react";
 
 import type { MemberRead, PracticeCreate } from "../api/types";
 import { localInputsToIso, ROLE_LABELS } from "../format";
+import { FindTime } from "./FindTime";
 import { ErrorMessage } from "./QueryStates";
 import { FormField, primaryButton, secondaryButton } from "./ui";
 
@@ -230,6 +231,16 @@ export function PracticeForm({
           </p>
         )}
       </fieldset>
+
+      <FindTime
+        memberIds={values.memberIds}
+        lengthMinutes={values.lengthMinutes}
+        onUse={(date, time) => {
+          setValues((current) => ({ ...current, date, time }));
+          onEdit();
+          document.getElementById(fieldId("date"))?.focus();
+        }}
+      />
 
       {conflict?.kind === "overlap" && (
         <div role="alert" className="mt-4 border-2 border-brand-700 bg-brand-50 p-3">

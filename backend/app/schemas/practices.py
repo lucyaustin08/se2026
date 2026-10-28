@@ -1,10 +1,10 @@
 """Request and response models for practices."""
 
-from datetime import datetime
+from datetime import date, datetime, time
 from enum import StrEnum
-from typing import Annotated
+from typing import Annotated, Self
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models.enums import InvitationStatus
 from app.models.practice import DEFAULT_PRACTICE_MINUTES
@@ -13,7 +13,9 @@ from app.schemas.members import MemberSummary
 from app.schemas.pagination import Page
 
 # At least half an hour, at most a long day.
-PracticeMinutes = Annotated[int, Field(ge=30, le=720)]
+MIN_PRACTICE_MINUTES = 30
+MAX_PRACTICE_MINUTES = 720
+PracticeMinutes = Annotated[int, Field(ge=MIN_PRACTICE_MINUTES, le=MAX_PRACTICE_MINUTES)]
 MAX_INVITEES = 20
 
 
@@ -61,3 +63,41 @@ class PracticeOut(BaseModel):
 
 class PracticePage(Page[PracticeOut]):
     pass
+
+
+class SuggestedTime(BaseModel):
+    """One possible practice time, with who could and couldn't come."""
+
+    starts_at: datetime
+    ends_at: datetime
+    available: list[MemberSummary]
+    unavailable: list[MemberSummary]
+    # A gig on the same local day, if there is one. Suggestions never overlap a gig.
+    same_day_gig: str | None
+
+
+class PracticeSuggestions(BaseModel):
+    """The best time on each day searched, best days first."""
+
+    searched_from: date
+    searched_to: date
+    suggestions: list[SuggestedTime]
+
+
+class PracticeSuggestionQuery(BaseModel):
+    """What to search for: who's invited, how long, and the hours of the day to consider."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    member_ids: Annotated[list[int], Field(min_length=1, max_length=MAX_INVITEES)]
+    length_minutes: PracticeMinutes = DEFAULT_PRACTICE_MINUTES
+    earliest: time = time(17, 0)
+    latest: time = time(23, 0)
+
+    @model_validator(mode="after")
+    def _the_practice_fits_in_the_hours(self) -> Self:
+        earliest = self.earliest.hour * 60 + self.earliest.minute
+        latest = self.latest.hour * 60 + self.latest.minute
+        if latest - earliest < self.length_minutes:
+            raise ValueError("the hours to search are shorter than the practice")
+        return self
