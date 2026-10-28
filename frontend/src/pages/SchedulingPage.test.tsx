@@ -95,6 +95,7 @@ describe("scheduling page: your busy times", () => {
     expect(sent).toEqual({
       starts_at: "2026-11-20T23:00:00.000Z",
       ends_at: "2026-11-21T02:30:00.000Z",
+      decline_invitations: false,
     });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
@@ -286,6 +287,7 @@ describe("scheduling page: weekly busy times", () => {
       end_time: "21:00",
       starts_on: "2026-11-02",
       ends_on: null,
+      decline_invitations: false,
     });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
@@ -485,7 +487,11 @@ describe("scheduling page: busy times over practices and gigs", () => {
     await user.click(within(alert).getByRole("button", { name: "Decline and save" }));
 
     expect(sent).toEqual([
-      { starts_at: "2026-11-12T22:00:00.000Z", ends_at: "2026-11-13T00:00:00.000Z" },
+      {
+        starts_at: "2026-11-12T22:00:00.000Z",
+        ends_at: "2026-11-13T00:00:00.000Z",
+        decline_invitations: false,
+      },
       {
         starts_at: "2026-11-12T22:00:00.000Z",
         ends_at: "2026-11-13T00:00:00.000Z",

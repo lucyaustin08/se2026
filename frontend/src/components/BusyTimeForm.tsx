@@ -5,6 +5,9 @@ import { localInputsToIso, toDateInputValue, toTimeInputValue } from "../format"
 import { ErrorMessage } from "./QueryStates";
 import { FormField, primaryButton, secondaryButton } from "./ui";
 
+/** What the form fills in. The pop-up adds whether to decline overlapping invitations. */
+export type BusyTimeFields = Omit<BusyTimeIn, "decline_invitations">;
+
 interface BusyTimeValues {
   startDate: string;
   startTime: string;
@@ -36,7 +39,7 @@ interface BusyTimeFormProps {
   submitLabel: string;
   saving: boolean;
   saveError: string | null;
-  onSave: (body: BusyTimeIn) => void;
+  onSave: (body: BusyTimeFields) => void;
   onCancel: () => void;
 }
 

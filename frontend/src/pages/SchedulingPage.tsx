@@ -405,7 +405,7 @@ function BusyTimeDialog({
               ? errorMessage(saveWeekly.error)
               : null
           }
-          onSave={(body) => saveWeekly.mutate(body)}
+          onSave={(body) => saveWeekly.mutate({ ...body, decline_invitations: false })}
           onCancel={onClose}
         />
       ) : (
@@ -418,7 +418,7 @@ function BusyTimeDialog({
               ? errorMessage(saveOneOff.error)
               : null
           }
-          onSave={(body) => saveOneOff.mutate(body)}
+          onSave={(body) => saveOneOff.mutate({ ...body, decline_invitations: false })}
           onCancel={onClose}
         />
       )}

@@ -5,6 +5,9 @@ import { ISO_WEEKDAYS } from "../format";
 import { ErrorMessage } from "./QueryStates";
 import { FormField, primaryButton, secondaryButton } from "./ui";
 
+/** What the form fills in. The pop-up adds whether to decline overlapping invitations. */
+export type WeeklyBusyTimeFields = Omit<RecurringBusyTimeIn, "decline_invitations">;
+
 interface WeeklyValues {
   weekdays: number[];
   startTime: string;
@@ -44,11 +47,11 @@ function todayValue(): string {
 
 interface WeeklyBusyTimeFormProps {
   /** The weekly busy time to start from when changing one. */
-  initial?: RecurringBusyTimeIn;
+  initial?: WeeklyBusyTimeFields;
   submitLabel: string;
   saving: boolean;
   saveError: string | null;
-  onSave: (body: RecurringBusyTimeIn) => void;
+  onSave: (body: WeeklyBusyTimeFields) => void;
   onCancel: () => void;
 }
 
