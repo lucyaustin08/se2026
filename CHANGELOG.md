@@ -9,7 +9,7 @@ Notable changes to Roadhouse, newest first.
 - User picker: continue as the manager or as a band member (sprint 1 stand-in for login).
 - Gigs: list, detail, add a potential gig, edit it, and book it.
 - Per-gig roles. The manager invites members to each role with their pay, and members accept or decline.
-- Members can't accept two gigs that overlap (load-in to end).
+- Members can't accept two gigs that overlap (soundcheck to end).
 - Booking needs every invited member, including the band leader, to have accepted.
 - Any number of contacts per gig, with notes.
 - Load-in, soundcheck and end times computed from the first set time.
