@@ -1,9 +1,9 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import { delay, http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
 import { getActingMember } from "../session";
-import { casey, managerMember, sam } from "../test/fixtures";
+import { casey, managerMember, riley, sam } from "../test/fixtures";
 import { errorBody } from "../test/handlers";
 import { renderApp } from "../test/render";
 import { server } from "../test/server";
@@ -46,16 +46,32 @@ describe("login page", () => {
     expect(await screen.findByText("No band members have been added yet.")).toBeInTheDocument();
   });
 
-  it("offers the manager and each member with their role", async () => {
+  it("offers the manager, the band leader, and each member with their role", async () => {
     renderApp("/login");
 
     expect(
       await screen.findByRole("button", { name: /Continue as manager\s*Jordan Avery/ }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /Sam Rivera\s*Rhythm guitar \/ vocals/ }),
+      screen.getByRole("button", {
+        name: /Continue as band leader\s*Sam Rivera · Rhythm guitar \/ vocals/,
+      }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Riley Chen\s*Bass/ })).toBeInTheDocument();
+    const members = screen.getByRole("region", { name: "Continue as a member" });
+    expect(within(members).getByRole("button", { name: /Riley Chen\s*Bass/ })).toBeInTheDocument();
+    expect(within(members).queryByRole("button", { name: /Sam Rivera/ })).not.toBeInTheDocument();
+  });
+
+  it("explains when no band leader has been set up", async () => {
+    server.use(
+      http.get("*/api/v1/members", () =>
+        HttpResponse.json({ items: [managerMember, riley], total: 2, page: 1, page_size: 100 }),
+      ),
+    );
+
+    renderApp("/login");
+
+    expect(await screen.findByText("No band leader has been set up yet.")).toBeInTheDocument();
   });
 
   it("explains when no manager has been set up", async () => {
@@ -81,17 +97,36 @@ describe("login page", () => {
       id: managerMember.id,
       name: "Jordan Avery",
       isManager: true,
+      isBandLeader: false,
+    });
+  });
+
+  it("continuing as the band leader opens the gigs page as the band leader", async () => {
+    const { user } = renderApp("/login");
+
+    await user.click(await screen.findByRole("button", { name: /Continue as band leader/ }));
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Gigs" })).toBeInTheDocument();
+    expect(screen.getByText(/Using Roadhouse as/)).toHaveTextContent(
+      "Using Roadhouse as Sam Rivera (band leader)",
+    );
+    expect(screen.getByRole("link", { name: "Add gig" })).toBeInTheDocument();
+    expect(getActingMember()).toEqual({
+      id: sam.id,
+      name: "Sam Rivera",
+      isManager: false,
+      isBandLeader: true,
     });
   });
 
   it("continuing as a member opens the gigs page as that member", async () => {
     const { user } = renderApp("/login");
 
-    await user.click(await screen.findByRole("button", { name: /Sam Rivera/ }));
+    await user.click(await screen.findByRole("button", { name: /Casey Morgan/ }));
 
     expect(await screen.findByRole("heading", { level: 1, name: "Gigs" })).toBeInTheDocument();
     expect(screen.getByText(/Using Roadhouse as/)).toHaveTextContent(
-      "Using Roadhouse as Sam Rivera (band member)",
+      "Using Roadhouse as Casey Morgan (band member)",
     );
     expect(screen.queryByRole("link", { name: "Add gig" })).not.toBeInTheDocument();
   });

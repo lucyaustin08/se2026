@@ -6,7 +6,7 @@ import { errorMessage, unwrap } from "../api/errors";
 import type { GigListItem, GigPage } from "../api/types";
 import { ErrorMessage, Loading } from "../components/QueryStates";
 import { formatDate, formatTime, GIG_STATUS_LABELS, LINEUP_SIZE_LABELS } from "../format";
-import { useActingMember } from "../session";
+import { runsTheBand, useActingMember } from "../session";
 
 const PAGE_SIZE = 100;
 
@@ -39,7 +39,7 @@ export function GigsPage() {
     <section>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">Gigs</h1>
-        {member.isManager && (
+        {runsTheBand(member) && (
           <Link
             to="/gigs/new"
             className="rounded bg-brand-700 px-4 py-2 font-medium text-white hover:bg-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
@@ -58,7 +58,7 @@ export function GigsPage() {
         ) : queries.some((query) => query.isPending) ? (
           <Loading label="Loading gigs…" />
         ) : (
-          <GigLists dated={dated.data} undated={undated.data} isManager={member.isManager} />
+          <GigLists dated={dated.data} undated={undated.data} runsTheBand={runsTheBand(member)} />
         )}
       </div>
     </section>
@@ -68,17 +68,17 @@ export function GigsPage() {
 interface GigListsProps {
   dated: GigPage | undefined;
   undated: GigPage | undefined;
-  isManager: boolean;
+  runsTheBand: boolean;
 }
 
-function GigLists({ dated, undated, isManager }: GigListsProps) {
+function GigLists({ dated, undated, runsTheBand }: GigListsProps) {
   const datedItems = dated?.items ?? [];
   const undatedItems = undated?.items ?? [];
 
   if (datedItems.length === 0 && undatedItems.length === 0) {
     return (
       <p className="text-gray-700">
-        {isManager
+        {runsTheBand
           ? "No gigs yet. Add your first gig to start tracking it."
           : "No gigs or invitations yet."}
       </p>

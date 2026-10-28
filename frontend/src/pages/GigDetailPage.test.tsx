@@ -1,9 +1,16 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { delay, http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
 import type { InvitationIn } from "../api/types";
-import { asManager, asRiley, asSam, blueDoorForSam } from "../test/fixtures";
+import {
+  asCasey,
+  asManager,
+  asRiley,
+  asSam,
+  blueDoorForCasey,
+  blueDoorForSam,
+} from "../test/fixtures";
 import { errorBody } from "../test/handlers";
 import { renderApp } from "../test/render";
 import { server } from "../test/server";
@@ -84,22 +91,41 @@ describe("gig detail page", () => {
     expect(contacts).toHaveTextContent("Load in through the alley door.");
   });
 
-  it("shows a member their gig read-only, with only their own pay", async () => {
-    server.use(http.get("*/api/v1/gigs/:gigId", () => HttpResponse.json(blueDoorForSam)));
+  it("shows a member their gig read-only, with only their own pay and no contacts", async () => {
+    server.use(http.get("*/api/v1/gigs/:gigId", () => HttpResponse.json(blueDoorForCasey)));
 
-    renderApp("/gigs/10", { as: asSam });
+    renderApp("/gigs/10", { as: asCasey });
 
     const invitation = await screen.findByRole("region", { name: "Your invitation" });
-    expect(invitation).toHaveTextContent("Role: Rhythm guitar / vocals");
+    expect(invitation).toHaveTextContent("Role: Lead guitar");
     expect(invitation).toHaveTextContent("Your pay: $200.00");
     expect(invitation).toHaveTextContent("Accepted");
     expect(within(invitation).queryByRole("button")).not.toBeInTheDocument();
 
     const lineup = screen.getByRole("region", { name: "Lineup" });
-    expect(lineup).toHaveTextContent("Lead guitar: Casey Morgan");
+    expect(lineup).toHaveTextContent("Rhythm guitar / vocals: Sam Rivera");
+    expect(lineup).not.toHaveTextContent("$");
     expect(screen.getByRole("region", { name: "Details" })).not.toHaveTextContent("pay");
+    expect(screen.queryByRole("region", { name: "Contacts" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Edit details" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Book gig" })).not.toBeInTheDocument();
+  });
+
+  it("shows the band leader everything, with the manager's lineup and edit tools", async () => {
+    server.use(http.get("*/api/v1/gigs/:gigId", () => HttpResponse.json(blueDoorForSam)));
+
+    renderApp("/gigs/10", { as: asSam });
+
+    const invitation = await screen.findByRole("region", { name: "Your invitation" });
+    expect(invitation).toHaveTextContent("Your pay: $200.00");
+
+    expect(screen.getByRole("region", { name: "Details" })).toHaveTextContent("Total pay$400.00");
+    const lineup = screen.getByRole("region", { name: "Lineup" });
+    await waitFor(() => expect(lineup).toHaveTextContent("Casey Morgan · Accepted · $200.00"));
+    expect(screen.getByRole("region", { name: "Contacts" })).toHaveTextContent(
+      "Venue: Pat Lee · 555-0142",
+    );
+    expect(screen.getByRole("link", { name: "Edit details" })).toBeInTheDocument();
   });
 
   it("lets an invited member accept", async () => {

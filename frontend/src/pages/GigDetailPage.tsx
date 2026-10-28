@@ -17,7 +17,7 @@ import {
   ROLE_LABELS,
   SLOT_STATUS_LABELS,
 } from "../format";
-import { useActingMember } from "../session";
+import { runsTheBand, useActingMember } from "../session";
 import { gigQueryKey, useGig, useMembers } from "./gigQueries";
 
 const primaryButton =
@@ -79,7 +79,7 @@ function GigDetails({ gig }: { gig: GigDetail }) {
         <span className="rounded border border-gray-400 px-2 py-0.5 text-sm font-medium">
           {GIG_STATUS_LABELS[gig.status]}
         </span>
-        {member.isManager && (
+        {runsTheBand(member) && (
           <Link to={`/gigs/${gig.id}/edit`} className="text-brand-700 underline">
             Edit details
           </Link>
@@ -116,7 +116,7 @@ function GigDetails({ gig }: { gig: GigDetail }) {
           <Detail term="Lineup">
             {gig.lineup_size ? LINEUP_SIZE_LABELS[gig.lineup_size] : "No roles yet"}
           </Detail>
-          {member.isManager && (
+          {runsTheBand(member) && (
             <Detail term="Total pay">
               {gig.pay_cents === null ? notSet : formatMoney(gig.pay_cents)}
             </Detail>
@@ -124,24 +124,27 @@ function GigDetails({ gig }: { gig: GigDetail }) {
         </dl>
       </section>
 
-      <section aria-labelledby="contacts-heading" className="mt-6">
-        <h2 id="contacts-heading" className="text-lg font-semibold">
-          Contacts
-        </h2>
-        {gig.contacts.length === 0 ? (
-          <p className="mt-1 text-gray-700">No contacts yet.</p>
-        ) : (
-          <ul className="mt-2 space-y-2">
-            {gig.contacts.map((contact) => (
-              <li key={contact.id}>
-                <span className="font-medium">{CONTACT_LABELS[contact.label]}:</span>{" "}
-                {[contact.name, contact.phone, contact.email].filter(Boolean).join(" · ")}
-                {contact.notes && <p className="text-sm text-gray-700">{contact.notes}</p>}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      {/* Venue contacts are private to the manager and band leader. */}
+      {runsTheBand(member) && (
+        <section aria-labelledby="contacts-heading" className="mt-6">
+          <h2 id="contacts-heading" className="text-lg font-semibold">
+            Contacts
+          </h2>
+          {gig.contacts.length === 0 ? (
+            <p className="mt-1 text-gray-700">No contacts yet.</p>
+          ) : (
+            <ul className="mt-2 space-y-2">
+              {gig.contacts.map((contact) => (
+                <li key={contact.id}>
+                  <span className="font-medium">{CONTACT_LABELS[contact.label]}:</span>{" "}
+                  {[contact.name, contact.phone, contact.email].filter(Boolean).join(" · ")}
+                  {contact.notes && <p className="text-sm text-gray-700">{contact.notes}</p>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       <section aria-labelledby="lineup-heading" className="mt-6">
         <h2 id="lineup-heading" className="text-lg font-semibold">
@@ -149,11 +152,11 @@ function GigDetails({ gig }: { gig: GigDetail }) {
         </h2>
         {gig.slots.length === 0 ? (
           <p className="mt-1 text-gray-700">
-            {member.isManager
+            {runsTheBand(member)
               ? "No roles yet. Choose the roles this gig needs under Edit details."
               : "No roles yet."}
           </p>
-        ) : member.isManager ? (
+        ) : runsTheBand(member) ? (
           <ManagerLineup gig={gig} />
         ) : (
           <ul className="mt-2 space-y-1">
@@ -167,7 +170,7 @@ function GigDetails({ gig }: { gig: GigDetail }) {
         )}
       </section>
 
-      {member.isManager && gig.status === "potential" && <BookingPanel gig={gig} />}
+      {runsTheBand(member) && gig.status === "potential" && <BookingPanel gig={gig} />}
     </>
   );
 }

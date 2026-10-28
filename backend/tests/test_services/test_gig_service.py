@@ -84,16 +84,50 @@ def test_manager_can_create_a_gig_with_roles_and_contacts(
     ],
     ids=["create", "edit", "book", "invite", "set pay"],
 )
-def test_members_cannot_do_manager_actions(
+def test_ordinary_members_cannot_run_gigs(
     service: GigService, make: Factory, db: Session, action: Any
 ) -> None:
     gig = make.bookable_gig()
-    member = make.member()
 
     with pytest.raises(PermissionDeniedError) as error:
-        action(service, member, gig)
+        action(service, make.member(), gig)
 
-    assert error.value.code == "manager_only"
+    assert error.value.code == "manager_or_band_leader_only"
+
+
+# The band leader runs gigs too: they can add, edit, book and invite, as well as play.
+
+
+def test_the_band_leader_can_add_a_gig(service: GigService, make: Factory) -> None:
+    detail = service.create_gig(make.leader(), GigCreate(venue_name="Hub City Tap"))
+
+    assert (detail.venue_name, detail.status) == ("Hub City Tap", GigStatus.POTENTIAL)
+
+
+def test_the_band_leader_can_edit_a_gig(service: GigService, make: Factory, db: Session) -> None:
+    gig = make.gig(venue_name="Old name")
+
+    service.update_gig(make.leader(), gig.id, GigUpdate(venue_name="New name"))
+
+    assert stored(db, gig).venue_name == "New name"
+
+
+def test_the_band_leader_can_book_a_gig(service: GigService, make: Factory) -> None:
+    leader = make.leader()
+    gig = make.bookable_gig(leader=leader)
+
+    assert service.book_gig(leader, gig.id).status is GigStatus.BOOKED
+
+
+def test_the_band_leader_can_invite_a_member(service: GigService, make: Factory) -> None:
+    gig = make.gig()
+    slot = make.slot(gig, Role.BASS)
+    riley = make.member()
+
+    detail = service.invite(make.leader(), gig.id, slot.id, InvitationIn(member_id=riley.id))
+
+    assert detail.slots[0].status is SlotStatus.INVITED
+    assert detail.slots[0].member is not None and detail.slots[0].member.id == riley.id
 
 
 # ---- Booking ----------------------------------------------------------------------------------
@@ -477,6 +511,18 @@ def test_manager_can_change_a_members_pay(service: GigService, make: Factory) ->
     assert detail.slots[0].pay_cents == 12_500
 
 
+def test_the_band_leader_can_change_a_members_pay(
+    service: GigService, make: Factory, db: Session
+) -> None:
+    gig = make.gig()
+    slot = make.slot(gig, Role.BASS, make.member(), pay_cents=10_000)
+
+    service.set_slot_pay(make.leader(), gig.id, slot.id, 12_500)
+
+    db.expire_all()
+    assert db.get(GigSlot, slot.id).pay_cents == 12_500  # type: ignore[union-attr]
+
+
 # ---- Answering invitations ----------------------------------------------------------------
 
 
@@ -573,17 +619,52 @@ def test_a_morning_and_an_evening_gig_can_both_be_accepted(
     assert service.accept(riley, morning.id, slot.id).slots[0].status is SlotStatus.ACCEPTED
 
 
-def test_load_in_counts_toward_the_overlap(service: GigService, make: Factory) -> None:
+# The later gig in these tests starts its first set at BLUE_DOOR_FIRST_SET, with load-in two
+# hours before and soundcheck one hour before. A member only has to be there by soundcheck.
+
+
+def test_overlapping_only_the_load_in_can_be_accepted(service: GigService, make: Factory) -> None:
     riley = make.member()
-    earlier = make.gig(first_set_at=BLUE_DOOR_FIRST_SET - timedelta(hours=4))  # ends 1h before
+    # Ends 90 minutes before the later gig's first set: after its load-in, before its soundcheck.
+    earlier = make.gig(first_set_at=BLUE_DOOR_FIRST_SET - timedelta(minutes=270))
     make.slot(earlier, Role.BASS, riley, SlotStatus.ACCEPTED)
-    later = make.gig(first_set_at=BLUE_DOOR_FIRST_SET, load_in_offset_minutes=120)
+    later = make.gig(
+        first_set_at=BLUE_DOOR_FIRST_SET, load_in_offset_minutes=120, soundcheck_offset_minutes=60
+    )
+    slot = make.slot(later, Role.BASS, riley)
+
+    assert service.accept(riley, later.id, slot.id).slots[0].status is SlotStatus.ACCEPTED
+
+
+def test_overlapping_the_soundcheck_is_refused(service: GigService, make: Factory) -> None:
+    riley = make.member()
+    # Ends 30 minutes before the later gig's first set, half an hour after its soundcheck.
+    earlier = make.gig(first_set_at=BLUE_DOOR_FIRST_SET - timedelta(minutes=210))
+    make.slot(earlier, Role.BASS, riley, SlotStatus.ACCEPTED)
+    later = make.gig(
+        first_set_at=BLUE_DOOR_FIRST_SET, load_in_offset_minutes=120, soundcheck_offset_minutes=60
+    )
     slot = make.slot(later, Role.BASS, riley)
 
     with pytest.raises(BusinessRuleViolation) as error:
         service.accept(riley, later.id, slot.id)
 
     assert error.value.code == "overlapping_gig"
+
+
+def test_ending_exactly_at_the_next_soundcheck_can_be_accepted(
+    service: GigService, make: Factory
+) -> None:
+    riley = make.member()
+    # Ends exactly one hour before the later gig's first set, when its soundcheck starts.
+    earlier = make.gig(first_set_at=BLUE_DOOR_FIRST_SET - timedelta(hours=4))
+    make.slot(earlier, Role.BASS, riley, SlotStatus.ACCEPTED)
+    later = make.gig(
+        first_set_at=BLUE_DOOR_FIRST_SET, load_in_offset_minutes=120, soundcheck_offset_minutes=60
+    )
+    slot = make.slot(later, Role.BASS, riley)
+
+    assert service.accept(riley, later.id, slot.id).slots[0].status is SlotStatus.ACCEPTED
 
 
 def test_cancelled_and_undated_gigs_never_overlap(service: GigService, make: Factory) -> None:
@@ -615,6 +696,37 @@ def test_moving_a_gig_onto_a_members_other_gig_is_refused(
     assert stored(db, gig).first_set_at == BLUE_DOOR_FIRST_SET + timedelta(days=1)
 
 
+def test_moving_soundcheck_earlier_onto_a_members_other_gig_is_refused(
+    service: GigService, make: Factory, db: Session
+) -> None:
+    riley = make.member()
+    # Ends exactly at the gig's soundcheck, so it fits until soundcheck moves earlier.
+    other = make.gig(first_set_at=BLUE_DOOR_FIRST_SET - timedelta(hours=4))
+    make.slot(other, Role.BASS, riley, SlotStatus.ACCEPTED)
+    gig = make.gig(first_set_at=BLUE_DOOR_FIRST_SET, soundcheck_offset_minutes=60)
+    make.slot(gig, Role.BASS, riley, SlotStatus.ACCEPTED)
+
+    with pytest.raises(BusinessRuleViolation) as error:
+        service.update_gig(make.manager(), gig.id, GigUpdate(soundcheck_offset_minutes=90))
+
+    assert error.value.code == "overlapping_gig"
+    assert stored(db, gig).soundcheck_offset_minutes == 60
+
+
+def test_moving_load_in_earlier_onto_a_members_other_gig_is_allowed(
+    service: GigService, make: Factory, db: Session
+) -> None:
+    riley = make.member()
+    other = make.gig(first_set_at=BLUE_DOOR_FIRST_SET - timedelta(hours=4))
+    make.slot(other, Role.BASS, riley, SlotStatus.ACCEPTED)
+    gig = make.gig(first_set_at=BLUE_DOOR_FIRST_SET, soundcheck_offset_minutes=60)
+    make.slot(gig, Role.BASS, riley, SlotStatus.ACCEPTED)
+
+    service.update_gig(make.manager(), gig.id, GigUpdate(load_in_offset_minutes=180))
+
+    assert stored(db, gig).load_in_offset_minutes == 180
+
+
 # ---- What members can see -----------------------------------------------------------------
 
 
@@ -632,6 +744,55 @@ def test_an_invited_member_sees_the_potential_gig_and_only_their_own_pay(
     assert pay_by_role == {Role.RHYTHM_GUITAR_VOCALS: None, Role.BASS: 15_000}
     assert detail.my_slot_id == next(s.id for s in detail.slots if s.role is Role.BASS)
     assert detail.missing_for_booking == []
+
+
+def test_members_on_a_gig_dont_see_its_venue_contacts(service: GigService, make: Factory) -> None:
+    gig = make.bookable_gig(status=GigStatus.BOOKED)
+    riley = make.member()
+    make.slot(gig, Role.BASS, riley, SlotStatus.ACCEPTED)
+
+    assert service.get_gig(riley, gig.id).contacts == []
+
+
+@pytest.mark.parametrize("who", ["manager", "band leader"])
+def test_the_manager_and_band_leader_see_venue_contacts(
+    service: GigService, make: Factory, who: str
+) -> None:
+    gig = make.bookable_gig()
+    actor = make.manager() if who == "manager" else make.leader()
+
+    contacts = service.get_gig(actor, gig.id).contacts
+
+    assert [(c.name, c.phone) for c in contacts] == [("Pat Lee", "555-0142")]
+
+
+def test_the_band_leader_sees_the_total_and_every_pay(service: GigService, make: Factory) -> None:
+    leader = make.leader()
+    gig = make.bookable_gig(leader=leader)
+    make.slot(gig, Role.BASS, make.member(), pay_cents=15_000)
+
+    detail = service.get_gig(leader, gig.id)
+
+    assert detail.pay_cents == 40_000
+    assert {slot.role: slot.pay_cents for slot in detail.slots} == {
+        Role.RHYTHM_GUITAR_VOCALS: 20_000,
+        Role.BASS: 15_000,
+    }
+    # The band leader plays, so their own slot is still theirs to answer.
+    assert detail.my_slot_id == next(
+        s.id for s in detail.slots if s.role is Role.RHYTHM_GUITAR_VOCALS
+    )
+
+
+def test_the_band_leader_sees_gigs_they_arent_on(service: GigService, make: Factory) -> None:
+    leader = make.leader()
+    draft = make.gig(venue_name="Draft nobody is on")
+    booked = make.bookable_gig(status=GigStatus.BOOKED, venue_name="Someone else's")
+
+    assert service.get_gig(leader, draft.id).venue_name == "Draft nobody is on"
+    rows = {row.id: row for row in list_for(service, leader).items}
+    assert {rows[draft.id].restricted, rows[booked.id].restricted} == {False}
+    assert rows[booked.id].venue_name == "Someone else's"
 
 
 def test_the_manager_sees_every_pay(service: GigService, make: Factory) -> None:
@@ -660,10 +821,11 @@ def test_a_potential_gig_looks_missing_to_members_who_arent_invited(
 
 
 def test_a_member_in_the_lineup_sees_the_booked_gig(service: GigService, make: Factory) -> None:
-    leader = make.leader()
-    gig = make.bookable_gig(status=GigStatus.BOOKED, leader=leader)
+    riley = make.member()
+    gig = make.bookable_gig(status=GigStatus.BOOKED)
+    make.slot(gig, Role.BASS, riley, SlotStatus.ACCEPTED)
 
-    assert service.get_gig(leader, gig.id).venue_name == "The Blue Door"
+    assert service.get_gig(riley, gig.id).venue_name == "The Blue Door"
 
 
 def test_a_member_not_in_the_lineup_cannot_open_a_booked_gig(

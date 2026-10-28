@@ -6,6 +6,8 @@ Every choice that had a real alternative. Newest entries at the bottom.
 
 ## 2026-10-12 — Gig lifecycle: potential, booked, cancelled
 
+> **Updated 2026-10-28:** the band leader can also book, and will be able to cancel. See "The band leader runs gigs too."
+
 **Decision:** A gig has a status of `potential`, `booked`, or `cancelled` (a `StrEnum` in the model layer). Booking and cancelling are named transitions: `POST /api/v1/gigs/{id}/book` and `POST /api/v1/gigs/{id}/cancel`. Only the manager can perform either. The manager can cancel any gig, potential or booked. Cancelled gigs are kept and shown as "Cancelled" to the manager and to assigned members.
 
 **Alternatives considered:**
@@ -437,6 +439,8 @@ Recorded as given, for reference:
 
 ## 2026-10-13 — Pay: the gig total and each member's share
 
+> **Updated 2026-10-28:** the band leader also sees the total and everyone's pay, and can change a member's pay. See "The band leader's permissions."
+
 **Decision:** The gig keeps its total (`pay_cents`), which only the manager sees. Each slot has the pay for that member, set when inviting or changed later with `PATCH /gigs/{id}/slots/{slot_id}` (there's no screen for changing it yet). A member sees only their own pay.
 
 **Alternatives considered:**
@@ -447,6 +451,8 @@ Recorded as given, for reference:
 ---
 
 ## 2026-10-13 — No member can accept two overlapping gigs
+
+> **Replaced 2026-10-27:** a member is now busy from soundcheck, not load-in. See "A member is busy from soundcheck to the end."
 
 **Decision:** A gig has a length (`performance_minutes`, default 180) after the first set, so it has a computed end time. A member is busy from **load-in to the end**.
 - Accepting an invitation is refused (`409 overlapping_gig`) if that window overlaps another gig the member already accepted.
@@ -541,3 +547,56 @@ The fonts (Anton for headings, Archivo for text) are stored as files in `fronten
 - A Google Fonts link. Not taken: the app would depend on an outside service every time it loads.
 
 **Still to do:** the paper background, square corners and headings in Anton, when the shared layout and components are restyled.
+## 2026-10-27 — A member is busy from soundcheck to the end
+
+**Decision:** For the overlap rule, a member on a gig is busy from **soundcheck to the end**, not from load-in. The product owner said every member must be able to be there "by soundcheck at the latest."
+- Accepting an invitation is refused (`409 overlapping_gig`) if this gig's soundcheck-to-end window overlaps the same window of another gig the member already accepted.
+- A gig that ends exactly when another gig's soundcheck starts is not an overlap.
+- Editing a gig re-checks accepted members when the first set, soundcheck offset or length changes. Changing only the load-in offset no longer triggers the check, because load-in no longer counts.
+- The same window will decide whether a member is free for a gig when availability is added.
+
+**Alternatives considered:**
+- Keeping load-in to end (the 2026-10-13 rule). Replaced: the product owner only requires members to arrive by soundcheck.
+- Using a different window for "can accept two gigs" and "is free for a gig." Not taken: the product owner gave one rule, and two windows would confuse members and the manager.
+
+---
+
+## 2026-10-28 — The band leader's permissions
+
+> **Updated 2026-10-28:** the band leader can now also add, edit, book and invite. See "The band leader runs gigs too."
+
+**Decision:** The manager and the band leader are two different people (confirmed by the instructor). Both "run the band," and one check, `runs_the_band()` in `app/services/permissions.py`, decides what they can do beyond an ordinary member. The frontend mirrors it with `runsTheBand()` in `src/session.tsx` to decide what to show, but the server enforces every rule.
+
+What the band leader can do now:
+- See every gig in full, like the manager: pending gigs they aren't invited to, and booked gigs they aren't on, with no "Not assigned" rows.
+- See the gig's total pay and everyone's pay. The product owner said the total is "viewable by the band leader" and that the band leader decides each member's pay.
+- Change a member's pay (`PATCH /gigs/{id}/slots/{slot_id}`). A refusal is `403 manager_or_band_leader_only`. There's still no screen for changing pay, so this is API only for now.
+- See venue contacts. Per the product owner's sprint 1 feedback, contacts are private to the people managing the booking. Ordinary members, even on the gig, now get an empty list and no Contacts section.
+
+What stays with the manager only: adding, editing, booking and cancelling gigs, and sending invitations (`403 manager_only`).
+
+The band leader still plays: they have their own slot on a gig and accept or decline their own invitation.
+
+To come with their features, per the team's follow-up to the product owner: seeing everyone's availability, revoking an acceptance and inviting a backup, scheduling practices, and seeing member emails. Each should use `runs_the_band()`.
+
+The user picker has a "Continue as band leader" section. A choice saved in `sessionStorage` before this change has no `isBandLeader`, so it's ignored and the person picks again.
+
+**Alternatives considered:**
+- Treating the band leader as an ordinary member (the sprint 1 behavior). Replaced: the product owner gives the band leader pay and contact access.
+- Letting the band leader do everything the manager does. Not taken: the product owner and instructor describe two roles, and booking stays with the manager.
+- Checking `is_manager or is_band_leader` at each call site. Not taken: the same rule will be needed by availability, revoking and practices, and copies drift apart.
+
+---
+
+## 2026-10-28 — The band leader runs gigs too
+
+**Decision:** The band leader can do everything the manager does with gigs: add and edit gigs (including choosing the roles), book them, and invite members, including picking a backup. Every one of these uses `runs_the_band()`, so a refusal is always `403 manager_or_band_leader_only`, and the `manager_only` code is no longer used. Cancelling isn't built yet. When it is, it uses the same check.
+
+The only difference left between them is that the band leader plays: they have their own slot and answer their own invitation, and the manager can't be invited (`409 manager_cannot_play`).
+
+The team decided this after the earlier entry kept these actions with the manager. That earlier choice was made without asking the team.
+
+**Alternatives considered:**
+- Keeping adding, editing, booking and inviting with the manager (the earlier entry). Replaced: the product owner said gigs are "confirmed and booked by the band leader/manager," and that the band leader determines the instrumentation for each performance.
+
+**For the product owner (sprint review):** confirm that the band leader and manager have the same gig powers.

@@ -56,7 +56,12 @@ export function AppLayout() {
           <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-gray-700">
             <p>
               Using Roadhouse as <strong>{member.name}</strong> (
-              {member.isManager ? "band manager" : "band member"})
+              {member.isManager
+                ? "band manager"
+                : member.isBandLeader
+                  ? "band leader"
+                  : "band member"}
+              )
             </p>
             <button
               type="button"

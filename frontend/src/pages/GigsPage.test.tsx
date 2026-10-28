@@ -3,6 +3,7 @@ import { delay, http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
 import {
+  asCasey,
   asManager,
   asRiley,
   asSam,
@@ -64,9 +65,16 @@ describe("gigs page", () => {
   it("tells a member when they have no gigs or invitations", async () => {
     server.use(http.get("*/api/v1/gigs", () => HttpResponse.json(emptyPage)));
 
-    renderApp("/gigs", { as: asSam });
+    renderApp("/gigs", { as: asCasey });
 
     expect(await screen.findByText("No gigs or invitations yet.")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Add gig" })).not.toBeInTheDocument();
+  });
+
+  it("offers the band leader the Add gig button", async () => {
+    renderApp("/gigs", { as: asSam });
+
+    expect(await screen.findByRole("link", { name: "Add gig" })).toBeInTheDocument();
   });
 
   it("lists the manager's gigs by date, then the undated drafts", async () => {

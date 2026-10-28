@@ -6,7 +6,7 @@ import { errorMessage, unwrap } from "../api/errors";
 import type { GigUpdate } from "../api/types";
 import { GigForm, gigToFormValues } from "../components/GigForm";
 import { ErrorMessage, Loading } from "../components/QueryStates";
-import { useActingMember } from "../session";
+import { runsTheBand, useActingMember } from "../session";
 import { gigQueryKey, useGig } from "./gigQueries";
 import { ManagerOnly } from "./NewGigPage";
 
@@ -26,7 +26,7 @@ export function EditGigPage() {
     },
   });
 
-  if (!member.isManager) {
+  if (!runsTheBand(member)) {
     return <ManagerOnly action="edit gigs" />;
   }
 

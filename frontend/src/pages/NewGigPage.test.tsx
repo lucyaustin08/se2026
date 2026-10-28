@@ -3,7 +3,7 @@ import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
 import type { GigCreate } from "../api/types";
-import { asManager, asSam, hubCity } from "../test/fixtures";
+import { asCasey, asManager, asSam, hubCity } from "../test/fixtures";
 import { errorBody, saveGig } from "../test/handlers";
 import { renderApp } from "../test/render";
 import { server } from "../test/server";
@@ -170,10 +170,19 @@ describe("add gig page", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("The request is invalid.");
   });
 
-  it("tells a member only the manager can add gigs", () => {
+  it("tells a member only the manager or band leader can add gigs", () => {
+    renderApp("/gigs/new", { as: asCasey });
+
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Manager or band leader only" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save gig" })).not.toBeInTheDocument();
+  });
+
+  it("lets the band leader add a gig", () => {
     renderApp("/gigs/new", { as: asSam });
 
-    expect(screen.getByRole("heading", { level: 1, name: "Manager only" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Save gig" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Add a gig" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save gig" })).toBeInTheDocument();
   });
 });

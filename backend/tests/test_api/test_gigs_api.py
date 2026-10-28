@@ -161,13 +161,22 @@ async def test_create_returns_201_with_location_and_the_new_gig(
     assert "venue address" in body["missing_for_booking"]
 
 
+async def test_the_band_leader_can_create_a_gig(client: AsyncClient, make: Factory) -> None:
+    response = await client.post(
+        "/api/v1/gigs", json={"venue_name": "Hub City Tap"}, headers=headers_for(make.leader())
+    )
+
+    assert response.status_code == 201
+    assert response.json()["venue_name"] == "Hub City Tap"
+
+
 async def test_create_by_a_member_is_refused(client: AsyncClient, make: Factory) -> None:
     response = await client.post(
         "/api/v1/gigs", json={"venue_name": "X"}, headers=headers_for(make.member())
     )
 
     assert response.status_code == 403
-    assert_error(response.json(), "manager_only")
+    assert_error(response.json(), "manager_or_band_leader_only")
 
 
 @pytest.mark.parametrize(
@@ -207,6 +216,19 @@ async def test_get_returns_the_gig_detail(client: AsyncClient, make: Factory) ->
     assert set(body) == GIG_DETAIL_KEYS
     assert (body["id"], body["pay_cents"], body["missing_for_booking"]) == (gig.id, 40000, [])
     assert body["slots"][0]["member"]["name"] == "Sam Rivera"
+
+
+async def test_a_member_on_the_gig_gets_no_venue_contacts(
+    client: AsyncClient, make: Factory
+) -> None:
+    gig = make.bookable_gig(status=GigStatus.BOOKED)
+    riley = make.member()
+    make.slot(gig, Role.BASS, riley, SlotStatus.ACCEPTED)
+
+    response = await client.get(f"/api/v1/gigs/{gig.id}", headers=headers_for(riley))
+
+    assert response.status_code == 200
+    assert response.json()["contacts"] == []
 
 
 async def test_get_a_missing_gig_is_404(client: AsyncClient, make: Factory) -> None:
@@ -268,7 +290,7 @@ async def test_patch_by_a_member_is_403(client: AsyncClient, make: Factory) -> N
     )
 
     assert response.status_code == 403
-    assert_error(response.json(), "manager_only")
+    assert_error(response.json(), "manager_or_band_leader_only")
 
 
 async def test_patch_that_leaves_a_booked_gig_incomplete_is_409(
@@ -325,7 +347,7 @@ async def test_book_by_a_member_is_403(client: AsyncClient, make: Factory) -> No
     response = await client.post(f"/api/v1/gigs/{gig.id}/book", headers=headers_for(make.member()))
 
     assert response.status_code == 403
-    assert_error(response.json(), "manager_only")
+    assert_error(response.json(), "manager_or_band_leader_only")
 
 
 async def test_book_a_missing_gig_is_404(client: AsyncClient, make: Factory) -> None:
@@ -383,7 +405,7 @@ async def test_invite_by_a_member_is_403(client: AsyncClient, make: Factory) -> 
     )
 
     assert response.status_code == 403
-    assert_error(response.json(), "manager_only")
+    assert_error(response.json(), "manager_or_band_leader_only")
 
 
 async def test_invite_to_a_missing_slot_is_404(client: AsyncClient, make: Factory) -> None:
@@ -445,6 +467,20 @@ async def test_set_slot_pay(client: AsyncClient, make: Factory) -> None:
     assert response.json()["slots"][0]["pay_cents"] == 12500
 
 
+async def test_the_band_leader_can_set_slot_pay(client: AsyncClient, make: Factory) -> None:
+    gig = make.gig()
+    slot = make.slot(gig, Role.BASS, make.member(), pay_cents=10000)
+
+    response = await client.patch(
+        f"/api/v1/gigs/{gig.id}/slots/{slot.id}",
+        json={"pay_cents": 12500},
+        headers=headers_for(make.leader()),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["slots"][0]["pay_cents"] == 12500
+
+
 async def test_set_slot_pay_by_a_member_is_403(client: AsyncClient, make: Factory) -> None:
     member = make.member()
     gig = make.gig()
@@ -457,7 +493,7 @@ async def test_set_slot_pay_by_a_member_is_403(client: AsyncClient, make: Factor
     )
 
     assert response.status_code == 403
-    assert_error(response.json(), "manager_only")
+    assert_error(response.json(), "manager_or_band_leader_only")
 
 
 async def test_set_pay_on_a_missing_gig_is_404(client: AsyncClient, make: Factory) -> None:
