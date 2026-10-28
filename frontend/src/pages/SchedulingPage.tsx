@@ -10,6 +10,7 @@ import { ErrorMessage, Loading } from "../components/QueryStates";
 import { pageHeading, primaryButton, secondaryButton, sectionHeading } from "../components/ui";
 import { formatRange } from "../format";
 import { runsTheBand, useActingMember } from "../session";
+import { PracticesSection } from "./PracticesSection";
 
 const BUSY_TIMES_KEY = ["busy-times"] as const;
 const PAGE_SIZE = 100;
@@ -23,8 +24,9 @@ export function SchedulingPage() {
     <section>
       <h1 className={pageHeading}>Scheduling</h1>
       <p className="mt-1 text-gray-700">
-        Mark when you can't play. Anyone without busy times counts as available.
+        Practices, and when people can't play. Anyone without busy times counts as available.
       </p>
+      <PracticesSection now={now} />
       {/* The manager doesn't play, so has no busy times of their own. */}
       {!member.isManager && <MyBusyTimes now={now} />}
       {runsTheBand(member) && <BandBusyTimes now={now} />}

@@ -45,3 +45,11 @@ class LineupSize(StrEnum):
     TRIO = "trio"
     QUARTET = "quartet"
     FULL_BAND = "full_band"
+
+
+class InvitationStatus(StrEnum):
+    """A member's answer to a practice invitation."""
+
+    INVITED = "invited"
+    ACCEPTED = "accepted"
+    DECLINED = "declined"

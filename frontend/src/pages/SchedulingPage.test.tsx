@@ -20,7 +20,7 @@ describe("scheduling page: your busy times", () => {
 
     renderApp("/scheduling", { as: asRiley });
 
-    expect(await screen.findByRole("status")).toHaveTextContent("Loading your busy times…");
+    expect(await screen.findByText("Loading your busy times…")).toHaveAttribute("role", "status");
   });
 
   it("shows an error with a retry that works", async () => {

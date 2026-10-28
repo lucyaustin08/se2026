@@ -17,6 +17,8 @@ import type {
   MemberPage,
   MemberProfile,
   MemberProfileUpdate,
+  PracticeCreate,
+  PracticeOut,
   SlotOut,
 } from "../api/types";
 import {
@@ -24,6 +26,7 @@ import {
   allMembers,
   allProfiles,
   blueDoor,
+  garagePractice,
   gigDetails,
   hubCity,
   toListItem,
@@ -54,13 +57,34 @@ let store = new Map<number, GigDetail>();
 let profiles = new Map<number, MemberProfile>();
 let busyTimes = new Map<number, BusyTimeOut>();
 let nextBusyTimeId = 900;
+let practices = new Map<number, PracticeOut>();
 
 export function resetMockData(): void {
   store = new Map(gigDetails.map((gig) => [gig.id, gig]));
   profiles = new Map(allProfiles.map((profile) => [profile.id, profile]));
   busyTimes = new Map(allBusyTimes.map((busyTime) => [busyTime.id, busyTime]));
   nextBusyTimeId = 900;
+  practices = new Map([[garagePractice.id, garagePractice]]);
 }
+
+/** A practice as one person sees it: their own answer, or null if they aren't invited. */
+function practiceFor(practice: PracticeOut, actor: MemberProfile | undefined): PracticeOut {
+  const mine = practice.invitations.find((i) => i.member.id === actor?.id);
+  return { ...practice, my_status: mine?.status ?? null };
+}
+
+function canSeePractice(practice: PracticeOut, actor: MemberProfile | undefined): boolean {
+  return Boolean(
+    actor?.is_manager ||
+    actor?.is_band_leader ||
+    practice.invitations.some((i) => i.member.id === actor?.id),
+  );
+}
+
+const practiceNotFound = () =>
+  HttpResponse.json(errorBody("practice_not_found", "That practice doesn't exist."), {
+    status: 404,
+  });
 
 /** Everyone but the manager, available, for a gig's soundcheck-to-end window. */
 export function availabilityFor(gig: GigDetail): GigAvailability {
@@ -221,6 +245,72 @@ export const handlers = [
     const gig = findGig(params.gigId);
     return gig ? HttpResponse.json(availabilityFor(gig)) : notFound();
   }),
+
+  http.get("*/api/v1/practices", ({ request }) => {
+    const refused = requireActingMember(request);
+    if (refused) return refused;
+    const actor = actingProfile(request);
+    const items = [...practices.values()]
+      .filter((practice) => canSeePractice(practice, actor))
+      .map((practice) => practiceFor(practice, actor));
+    return HttpResponse.json(page(items));
+  }),
+
+  http.post("*/api/v1/practices", async ({ request }) => {
+    const refused = requireActingMember(request);
+    if (refused) return refused;
+    const actor = actingProfile(request);
+    const body = (await request.json()) as PracticeCreate;
+    const length = body.length_minutes ?? 180;
+    const created: PracticeOut = {
+      id: 950 + practices.size,
+      starts_at: body.starts_at,
+      ends_at: new Date(new Date(body.starts_at).getTime() + length * 60_000).toISOString(),
+      length_minutes: length,
+      location: body.location ?? null,
+      notes: body.notes ?? null,
+      scheduled_by: { id: actor?.id ?? 0, name: actor?.name ?? "" },
+      invitations: body.member_ids.map((id) => {
+        const member = profiles.get(id);
+        return {
+          member: { id, name: member?.name ?? "" },
+          status: id === actor?.id ? "accepted" : "invited",
+          responded_at: null,
+        };
+      }),
+      my_status: null,
+      created_at: "2026-10-28T12:00:00Z",
+    };
+    practices.set(created.id, created);
+    return HttpResponse.json(practiceFor(created, actor), {
+      status: 201,
+      headers: { Location: `/api/v1/practices/${created.id}` },
+    });
+  }),
+
+  ...(["accept", "decline"] as const).map((answer) =>
+    http.post(`*/api/v1/practices/:practiceId/${answer}`, ({ request, params }) => {
+      const refused = requireActingMember(request);
+      if (refused) return refused;
+      const actor = actingProfile(request);
+      const practice = practices.get(Number(params.practiceId));
+      if (!practice || !canSeePractice(practice, actor)) return practiceNotFound();
+      const updated: PracticeOut = {
+        ...practice,
+        invitations: practice.invitations.map((invitation) =>
+          invitation.member.id === actor?.id
+            ? {
+                ...invitation,
+                status: answer === "accept" ? "accepted" : "declined",
+                responded_at: "2026-10-28T12:00:00Z",
+              }
+            : invitation,
+        ),
+      };
+      practices.set(updated.id, updated);
+      return HttpResponse.json(practiceFor(updated, actor));
+    }),
+  ),
 
   http.get("*/api/v1/busy-times", ({ request }) => {
     const refused = requireActingMember(request);

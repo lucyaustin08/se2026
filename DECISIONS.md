@@ -648,3 +648,25 @@ The overlap check that was private to the gig service is now `busy_window()`, so
 
 **Alternatives considered:**
 - Hiding busy players or refusing to invite them. Not taken: the product owner wants them asked, so they can decide.
+
+---
+
+## 2026-10-28 — One-time practices
+
+**Decision:** The manager and band leader schedule one-time practices and invite any group of players. The product owner said weekly practices aren't a priority, so there are none.
+- A practice has a start, a length (default 3 hours, from 30 minutes to 12 hours), and an optional location and notes. Its end is computed, never stored.
+- Invitations are `invited`, `accepted` or `declined`. A member answers once (`409 invitation_not_pending`), the same as gigs. The manager can't be invited, because they don't play (`409 manager_cannot_play`). If the band leader schedules a practice and invites themselves, their own invitation starts as accepted.
+- The manager and band leader see every practice and everyone's answers. Members see only the practices they're invited to, with their own answer. A practice a member isn't invited to returns `404`, like a gig they can't see.
+- **Conflicts with gigs:**
+  - A practice that overlaps a booked or pending gig's soundcheck-to-end window is refused (`409 practice_overlaps_gig`, naming the gig).
+  - A practice on the same day as a gig, in the band's local time, is refused with `409 practice_same_day_as_gig` unless the request sets `confirm_same_day`. The app shows that as a warning with "Schedule anyway" and "Change the time."
+  - Cancelled gigs never count.
+- **The band's time zone** is one constant, `America/New_York`, in `app/services/band_time.py`, using Python's built-in `zoneinfo`. It's needed for "same day," and recurring busy times will use it too.
+
+**Alternatives considered:**
+- Weekly practices. Not built: the product owner said they aren't a priority right now.
+- Only booked gigs blocking practices (the product owner's words). Extended by the team to pending gigs too, so the band never turns down a gig because a practice is already scheduled at that time.
+- A separate "check" endpoint before saving. Not taken: one `POST` that refuses with a specific code, then is resent with `confirm_same_day`, keeps the rule in one place.
+- Using the gig's load-in for overlaps. Not taken: the rest of the app treats a gig as running from soundcheck to the end.
+
+**Not built yet:** changing or cancelling a practice. Neither is in this sprint's stories.

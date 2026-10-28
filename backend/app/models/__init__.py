@@ -2,9 +2,17 @@
 
 from app.models.availability import BusyTime
 from app.models.base import Base
-from app.models.enums import ContactLabel, GigStatus, LineupSize, Role, SlotStatus
+from app.models.enums import (
+    ContactLabel,
+    GigStatus,
+    InvitationStatus,
+    LineupSize,
+    Role,
+    SlotStatus,
+)
 from app.models.gig import Gig, GigContact, GigSlot
 from app.models.member import Member
+from app.models.practice import Practice, PracticeInvitation
 
 __all__ = [
     "Base",
@@ -14,8 +22,11 @@ __all__ = [
     "GigContact",
     "GigSlot",
     "GigStatus",
+    "InvitationStatus",
     "LineupSize",
     "Member",
+    "Practice",
+    "PracticeInvitation",
     "Role",
     "SlotStatus",
 ]

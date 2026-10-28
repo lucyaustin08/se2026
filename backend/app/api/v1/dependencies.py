@@ -10,6 +10,7 @@ from app.models.member import Member
 from app.services.availability import AvailabilityService
 from app.services.gigs import GigService
 from app.services.members import MemberService
+from app.services.practices import PracticeService
 
 ACTING_MEMBER_HEADER = "X-Acting-Member-Id"
 
@@ -49,7 +50,12 @@ def get_member_service(db: DbSession) -> MemberService:
     return MemberService(db)
 
 
+def get_practice_service(db: DbSession) -> PracticeService:
+    return PracticeService(db)
+
+
 ActingMember = Annotated[Member, Depends(get_acting_member)]
 AvailabilityServiceDep = Annotated[AvailabilityService, Depends(get_availability_service)]
 GigServiceDep = Annotated[GigService, Depends(get_gig_service)]
 MemberServiceDep = Annotated[MemberService, Depends(get_member_service)]
+PracticeServiceDep = Annotated[PracticeService, Depends(get_practice_service)]
