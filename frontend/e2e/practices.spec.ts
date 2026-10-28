@@ -48,7 +48,7 @@ test.describe("Story: the band leader schedules a practice and invited members a
       .click();
     const mine = page.getByRole("listitem").filter({ hasText: location });
     await mine.getByRole("button", { name: "I'll be there" }).click();
-    await expect(mine).toContainText("Your answer:Coming");
+    await expect(mine).toContainText("Your answer:Attending");
 
     // The practice shows on Taylor's calendar on its day.
     await page.goto(`/scheduling?date=${day}&view=month`);

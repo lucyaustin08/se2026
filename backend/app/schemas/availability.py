@@ -18,12 +18,17 @@ class BusyTimeSort(StrEnum):
 
 
 class BusyTimeIn(BaseModel):
-    """A one-off busy time. Used to add one, and to change one (both times are sent)."""
+    """A one-off busy time. Used to add one, and to change one (both times are sent).
+
+    `decline_invitations` says the member has seen the warning that they're invited to a
+    practice or gig during it, and wants those invitations declined.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     starts_at: UtcDatetime
     ends_at: UtcDatetime
+    decline_invitations: bool = False
 
     @model_validator(mode="after")
     def _ends_after_it_starts(self) -> Self:
@@ -97,7 +102,7 @@ class RecurringBusyTimeIn(BaseModel):
 
     An `end_time` at or before `start_time` means it runs past midnight into the next day, so
     the two can't be equal. `ends_on` is the last date it can start on; leave it out to keep it
-    going until it's changed.
+    going until it's changed. `decline_invitations` works as it does for one-off busy times.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -107,6 +112,7 @@ class RecurringBusyTimeIn(BaseModel):
     end_time: time
     starts_on: date
     ends_on: date | None = None
+    decline_invitations: bool = False
 
     @field_validator("weekdays")
     @classmethod

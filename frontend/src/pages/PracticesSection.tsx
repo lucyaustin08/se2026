@@ -16,7 +16,7 @@ export const PRACTICES_KEY = ["practices"] as const;
 
 export const INVITATION_LABELS: Record<InvitationStatus, string> = {
   invited: "Invited",
-  accepted: "Coming",
+  accepted: "Attending",
   declined: "Can't make it",
 };
 

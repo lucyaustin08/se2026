@@ -294,7 +294,7 @@ export const samWednesdays: RecurringBusyTimeOut = {
 export const allWeeklyBusyTimes: RecurringBusyTimeOut[] = [samWednesdays];
 
 /**
- * A practice Sam scheduled for 6:00–9:00 PM Eastern on Thu, Nov 12, 2026. Sam is coming,
+ * A practice Sam scheduled for 6:00–9:00 PM Eastern on Thu, Nov 12, 2026. Sam is attending,
  * Riley hasn't answered and Casey can't make it. `my_status` is filled in per viewer.
  */
 export const garagePractice: PracticeOut = {
