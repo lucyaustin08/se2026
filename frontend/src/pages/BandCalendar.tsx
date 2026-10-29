@@ -437,7 +437,7 @@ function Legend({
             key={player.id}
             className={`border border-dashed border-ink px-2 ${fills.get(player.id) ?? UNKNOWN_MEMBER_FILL}`}
           >
-            <span className="font-semibold">{initials(player.name)}</span> {player.name} busy
+            <span className="font-semibold">{initials(player.name)}</span> {player.name} Busy
           </li>
         ))}
       </ul>

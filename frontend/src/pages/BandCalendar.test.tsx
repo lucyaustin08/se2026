@@ -155,9 +155,9 @@ describe("band calendar", () => {
     renderApp("/scheduling?date=2026-11-12", { as: asManager });
 
     const key = await within(calendar()).findByRole("region", { name: "Key" });
-    expect(await within(key).findByText("Riley Chen busy", { exact: false })).toBeInTheDocument();
-    expect(key).toHaveTextContent("RC Riley Chen busy");
-    expect(key).toHaveTextContent("CM Casey Morgan busy");
+    expect(await within(key).findByText("Riley Chen Busy", { exact: false })).toBeInTheDocument();
+    expect(key).toHaveTextContent("RC Riley Chen Busy");
+    expect(key).toHaveTextContent("CM Casey Morgan Busy");
     expect(key).not.toHaveTextContent("Jordan Avery");
   });
 
@@ -165,7 +165,7 @@ describe("band calendar", () => {
     renderApp("/scheduling?date=2026-11-12", { as: asRiley });
 
     const key = await within(calendar()).findByRole("region", { name: "Key" });
-    expect(await within(key).findByText(/Riley Chen busy/)).toBeInTheDocument();
+    expect(await within(key).findByText(/Riley Chen Busy/)).toBeInTheDocument();
     expect(key).not.toHaveTextContent("Casey Morgan");
   });
 

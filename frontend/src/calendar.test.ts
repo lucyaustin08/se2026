@@ -96,7 +96,7 @@ describe("calendar entries", () => {
   });
 
   it("labels busy times with the member's initials", () => {
-    expect(busyEntry(toPeriod(caseyAway)).label).toBe("CM busy");
+    expect(busyEntry(toPeriod(caseyAway)).label).toBe("CM Busy");
     expect(busyEntry(toPeriod(caseyAway)).detail).toBe("Casey Morgan is busy, 9:00 AM – 6:00 PM");
     expect(initials("Riley  Chen-Park")).toBe("RC");
   });
