@@ -136,7 +136,7 @@ export function busyEntry(period: BusyPeriod): CalendarEntry {
     kind: "busy",
     start: new Date(period.starts_at),
     end: new Date(period.ends_at),
-    label: `${initials(period.member.name)} busy`,
+    label: `${initials(period.member.name)} Busy`,
     detail:
       period.kind === "weekly"
         ? `${period.member.name} is busy, ${times}, every week`
